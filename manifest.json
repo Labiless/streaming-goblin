@@ -1,15 +1,29 @@
 {
   "manifest_version": 3,
-  "name": "StreamingCommunity Popup Blocker",
-  "version": "1.1.0",
+  "name": "Streaming Goblin",
+  "version": "1.4.0",
   "description": "Blocca l'apertura di tab pubblicitarie sul dominio configurato.",
   "permissions": ["scripting", "storage", "tabs", "webNavigation"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },
+  "web_accessible_resources": [{
+    "resources": ["goblin.png", "fonts/RubikIso-latin.woff2"],
+    "matches": ["<all_urls>"]
+  }],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "SC Popup Blocker"
+    "default_title": "Streaming Goblin",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
   }
 }

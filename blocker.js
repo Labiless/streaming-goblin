@@ -3,6 +3,11 @@
   // Evita doppie iniezioni nella stessa pagina
   if (window[MARK]) return;
 
+  // Avvisa l'estensione (toast.js) che un tentativo è stato bloccato
+  const report = () => {
+    try { window.postMessage({ __scBlocker: 'blocked' }, '*'); } catch {}
+  };
+
   // Applica tutte le protezioni a una finestra (la pagina o un iframe dello stesso dominio)
   function patch(win) {
     try {
@@ -38,6 +43,7 @@
     // 1. window.open: restituisce una finta finestra, così lo script pubblicitario
     //    crede di esserci riuscito e non ritenta con altri metodi
     lock(win, 'open', function open() {
+      report();
       return {
         closed: false, opener: null,
         close() { this.closed = true; }, focus: noop, blur: noop, postMessage: noop,
@@ -49,13 +55,16 @@
     // 2. Link finti creati e "cliccati" da codice, anche se non sono nel DOM
     const clickOrig = win.HTMLElement.prototype.click;
     lock(win.HTMLElement.prototype, 'click', function click() {
-      if (linkBlocked(linkOf(this)) || submitBlocked(this)) return;
+      if (linkBlocked(linkOf(this)) || submitBlocked(this)) return report();
       return clickOrig.call(this);
     });
 
     const dispatchOrig = win.EventTarget.prototype.dispatchEvent;
     lock(win.EventTarget.prototype, 'dispatchEvent', function dispatchEvent(ev) {
-      if (ev?.type === 'click' && (linkBlocked(linkOf(this)) || submitBlocked(this))) return false;
+      if (ev?.type === 'click' && (linkBlocked(linkOf(this)) || submitBlocked(this))) {
+        report();
+        return false;
+      }
       return dispatchOrig.call(this, ev);
     });
 
@@ -63,13 +72,13 @@
     const FP = win.HTMLFormElement.prototype;
     const submitOrig = FP.submit;
     lock(FP, 'submit', function submit() {
-      if (formBlocked(this)) return;
+      if (formBlocked(this)) return report();
       return submitOrig.call(this);
     });
     const requestSubmitOrig = FP.requestSubmit;
     if (requestSubmitOrig) {
       lock(FP, 'requestSubmit', function requestSubmit(submitter) {
-        if (formBlocked(this, submitter)) return;
+        if (formBlocked(this, submitter)) return report();
         return requestSubmitOrig.apply(this, arguments);
       });
     }
@@ -84,6 +93,7 @@
       if (linkBlocked(a)) {
         e.preventDefault();
         e.stopImmediatePropagation();
+        report();
       }
     }, true);
 
@@ -91,6 +101,7 @@
       if (formBlocked(e.target, e.submitter)) {
         e.preventDefault();
         e.stopImmediatePropagation();
+        report();
       }
     }, true);
 

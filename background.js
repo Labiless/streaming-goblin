@@ -1,4 +1,5 @@
 const SCRIPT_ID = 'sc-blocker';
+const TOAST_ID = 'sc-toast';
 const DEFAULTS = { enabled: true, domain: 'streamingcommunityz.photos' };
 
 // Accetta sia "https://sito.xyz/qualcosa" sia "sito.xyz"
@@ -34,8 +35,8 @@ async function getSettings() {
 async function syncRegistration() {
   const { enabled, domain } = await getSettings();
 
-  const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [SCRIPT_ID] });
-  if (existing.length) await chrome.scripting.unregisterContentScripts({ ids: [SCRIPT_ID] });
+  const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [SCRIPT_ID, TOAST_ID] });
+  if (existing.length) await chrome.scripting.unregisterContentScripts({ ids: existing.map(s => s.id) });
 
   if (!enabled || !domain) return;
 
@@ -47,6 +48,14 @@ async function syncRegistration() {
     world: 'MAIN',
     allFrames: true,
     persistAcrossSessions: true
+  }, {
+    // Il toast gira nel mondo isolato dell'estensione, separato dagli script del sito
+    id: TOAST_ID,
+    js: ['toast.js'],
+    matches: matchPatterns(domain),
+    runAt: 'document_start',
+    allFrames: true,
+    persistAcrossSessions: true
   }]);
 
   await injectIntoOpenTabs(domain);
@@ -55,13 +64,14 @@ async function syncRegistration() {
 // Inietta subito nelle tab già aperte, così non serve ricaricare dopo "Start"
 async function injectIntoOpenTabs(domain) {
   const tabs = await chrome.tabs.query({ url: matchPatterns(domain) });
-  await Promise.all(tabs.map(tab =>
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id, allFrames: true },
-      files: ['blocker.js'],
-      world: 'MAIN'
-    }).catch(() => {})
-  ));
+  await Promise.all(tabs.map(tab => injectInto({ tabId: tab.id, allFrames: true })));
+}
+
+function injectInto(target, extra = {}) {
+  return Promise.all([
+    chrome.scripting.executeScript({ target, files: ['blocker.js'], world: 'MAIN', ...extra }),
+    chrome.scripting.executeScript({ target, files: ['toast.js'], ...extra })
+  ]).catch(() => {});
 }
 
 // Il player sta in un iframe di un altro dominio (es. vixcloud), dove lo script
@@ -72,12 +82,7 @@ chrome.webNavigation.onCommitted.addListener(async ({ tabId, frameId, url }) => 
   if (!enabled || !domain) return;
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   if (!tab?.url || !hostMatches(tab.url, domain)) return;
-  chrome.scripting.executeScript({
-    target: { tabId, frameIds: [frameId] },
-    files: ['blocker.js'],
-    world: 'MAIN',
-    injectImmediately: true
-  }).catch(() => {});
+  injectInto({ tabId, frameIds: [frameId] }, { injectImmediately: true });
 });
 
 chrome.runtime.onInstalled.addListener(syncRegistration);

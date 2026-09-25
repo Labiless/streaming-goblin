@@ -2,30 +2,110 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
+  <title>Streaming Goblin</title>
   <style>
-    body { font: 13px system-ui, sans-serif; width: 260px; margin: 0; padding: 14px; }
-    h1 { font-size: 14px; margin: 0 0 12px; }
-    label { display: block; font-weight: 600; margin-bottom: 4px; }
-    input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #bbb; border-radius: 6px; }
-    .row { display: flex; gap: 8px; margin-top: 10px; }
-    button { flex: 1; padding: 8px; border: 0; border-radius: 6px; font-weight: 600; cursor: pointer; color: #fff; }
-    #save { background: #555; }
-    #toggle.on { background: #c0392b; }
-    #toggle.off { background: #27ae60; }
-    #status { margin-top: 10px; font-size: 12px; color: #555; min-height: 16px; }
-    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    @font-face {
+      font-family: 'Rubik Iso';
+      src: url(fonts/RubikIso-latin.woff2) format('woff2');
+      font-display: block;
+    }
+
+    :root {
+      --yellow: #ffea4f;
+      --black: #000;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      width: 420px;
+      margin: 0;
+      padding: 18px 28px 14px;
+      background: var(--black);
+      color: var(--yellow);
+      font-family: 'Rubik Iso', system-ui, sans-serif;
+      position: relative;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .goblin {
+      position: absolute;
+      top: 14px;
+      left: 8px;
+      width: 150px;
+      pointer-events: none;
+      transition: filter .25s, opacity .25s;
+    }
+    body.off .goblin { filter: grayscale(1); opacity: .45; }
+
+    h1 {
+      margin: 36px 0 0 136px;
+      font-size: 20px;
+      font-weight: 400;
+      text-align: center;
+      width: 214px;
+    }
+
+    #toggle {
+      position: relative; /* sopra il goblin */
+      display: block;
+      width: 250px;
+      height: 92px;
+      margin: 12px 0 0 80px;
+      background: var(--black);
+      color: var(--yellow);
+      border: 1px solid var(--yellow);
+      font-family: inherit;
+      font-size: 54px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    #toggle:hover,
+    #toggle:focus-visible { background: var(--yellow); color: var(--black); outline: none; }
+
+    h2 {
+      margin: 38px -14px 12px;
+      font-size: 28px;
+      font-weight: 400;
+      text-align: center;
+    }
+
+    #domain {
+      display: block;
+      width: 100%;
+      height: 44px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 0;
+      background: var(--yellow);
+      color: var(--black);
+      font: 400 17px/1 Roboto, system-ui, sans-serif;
+      text-align: center;
+      outline: none;
+    }
+    #domain:focus { box-shadow: 0 0 0 2px var(--black), 0 0 0 3px var(--yellow); }
+
+    #status {
+      min-height: 16px;
+      margin-top: 8px;
+      font: 12px system-ui, sans-serif;
+      text-align: center;
+      opacity: .8;
+    }
   </style>
 </head>
 <body>
-  <h1>SC Popup Blocker</h1>
+  <img class="goblin" src="goblin.png" alt="">
 
-  <label for="domain">Dominio</label>
-  <input id="domain" type="text" placeholder="https://streamingcommunityz.photos">
+  <h1>Streaming Goblin</h1>
 
-  <div class="row">
-    <button id="save">Salva</button>
-    <button id="toggle">…</button>
-  </div>
+  <button id="toggle">START</button>
+
+  <h2>Change affected Domain</h2>
+
+  <input id="domain" type="text" spellcheck="false" placeholder="streamingcommunityz.photos">
 
   <div id="status"></div>
 

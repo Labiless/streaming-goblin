@@ -2,22 +2,20 @@ const DEFAULTS = { enabled: true, domain: 'streamingcommunityz.photos' };
 
 const domainInput = document.getElementById('domain');
 const toggleBtn = document.getElementById('toggle');
-const saveBtn = document.getElementById('save');
 const statusEl = document.getElementById('status');
 
 let enabled = true;
+let savedDomain = '';
+let debounceTimer;
 
-function render(extra = '') {
-  toggleBtn.textContent = enabled ? 'Stop' : 'Start';
-  toggleBtn.className = enabled ? 'on' : 'off';
-  const color = enabled ? '#27ae60' : '#999';
-  statusEl.innerHTML =
-    `<span class="dot" style="background:${color}"></span>` +
-    (enabled ? 'Attivo' : 'Disattivato') +
-    (extra ? ` — ${extra}` : '');
+function render(message = '') {
+  toggleBtn.textContent = enabled ? 'STOP' : 'START';
+  document.body.classList.toggle('off', !enabled);
+  statusEl.textContent = message;
 }
 
-async function save(newEnabled) {
+// fromTyping: non riscrive il campo mentre stai digitando (sposterebbe il cursore)
+async function save(newEnabled, fromTyping = false) {
   const res = await chrome.runtime.sendMessage({
     type: 'save',
     enabled: newEnabled,
@@ -29,16 +27,34 @@ async function save(newEnabled) {
   }
   const wasEnabled = enabled;
   enabled = newEnabled;
-  domainInput.value = res.domain;
-  render(wasEnabled && !enabled ? 'ricarica la pagina per rimuoverlo' : 'salvato');
+  savedDomain = res.domain;
+  if (!fromTyping) domainInput.value = res.domain;
+  render(wasEnabled && !enabled ? 'Ricarica la pagina per disattivarlo del tutto' : '');
 }
 
-saveBtn.addEventListener('click', () => save(enabled));
 toggleBtn.addEventListener('click', () => save(!enabled));
-domainInput.addEventListener('keydown', e => { if (e.key === 'Enter') save(enabled); });
+
+// Salvataggio automatico del dominio: poco dopo che smetti di scrivere,
+// oppure subito con Invio o quando il campo perde il focus
+function saveDomainIfChanged(fromTyping) {
+  clearTimeout(debounceTimer);
+  if (!domainInput.value.trim()) return;
+  if (domainInput.value.trim() === savedDomain) {
+    if (!fromTyping) domainInput.value = savedDomain;
+    return;
+  }
+  save(enabled, fromTyping);
+}
+domainInput.addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => saveDomainIfChanged(true), 400);
+});
+domainInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveDomainIfChanged(false); });
+domainInput.addEventListener('blur', () => saveDomainIfChanged(false));
 
 chrome.storage.sync.get(DEFAULTS).then(s => {
   enabled = s.enabled;
   domainInput.value = s.domain;
+  savedDomain = s.domain;
   render();
 });
