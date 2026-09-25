@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font: 13px system-ui, sans-serif; width: 260px; margin: 0; padding: 14px; }
+    h1 { font-size: 14px; margin: 0 0 12px; }
+    label { display: block; font-weight: 600; margin-bottom: 4px; }
+    input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #bbb; border-radius: 6px; }
+    .row { display: flex; gap: 8px; margin-top: 10px; }
+    button { flex: 1; padding: 8px; border: 0; border-radius: 6px; font-weight: 600; cursor: pointer; color: #fff; }
+    #save { background: #555; }
+    #toggle.on { background: #c0392b; }
+    #toggle.off { background: #27ae60; }
+    #status { margin-top: 10px; font-size: 12px; color: #555; min-height: 16px; }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  </style>
+</head>
+<body>
+  <h1>SC Popup Blocker</h1>
+
+  <label for="domain">Dominio</label>
+  <input id="domain" type="text" placeholder="https://streamingcommunityz.photos">
+
+  <div class="row">
+    <button id="save">Salva</button>
+    <button id="toggle">…</button>
+  </div>
+
+  <div id="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
