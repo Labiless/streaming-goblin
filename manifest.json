@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "StreamingCommunity Popup Blocker",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Blocca l'apertura di tab pubblicitarie sul dominio configurato.",
-  "permissions": ["scripting", "storage", "tabs"],
+  "permissions": ["scripting", "storage", "tabs", "webNavigation"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"

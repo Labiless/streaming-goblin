@@ -12,6 +12,15 @@ function normalizeDomain(input) {
   }
 }
 
+function hostMatches(url, domain) {
+  try {
+    const host = new URL(url).hostname;
+    return host === domain || host.endsWith(`.${domain}`);
+  } catch {
+    return false;
+  }
+}
+
 function matchPatterns(domain) {
   return [`*://${domain}/*`, `*://*.${domain}/*`];
 }
@@ -54,6 +63,22 @@ async function injectIntoOpenTabs(domain) {
     }).catch(() => {})
   ));
 }
+
+// Il player sta in un iframe di un altro dominio (es. vixcloud), dove lo script
+// registrato sopra non arriva: lo iniettiamo in ogni sotto-frame delle tab del sito.
+chrome.webNavigation.onCommitted.addListener(async ({ tabId, frameId, url }) => {
+  if (frameId === 0 || !/^https?:/.test(url)) return;
+  const { enabled, domain } = await getSettings();
+  if (!enabled || !domain) return;
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (!tab?.url || !hostMatches(tab.url, domain)) return;
+  chrome.scripting.executeScript({
+    target: { tabId, frameIds: [frameId] },
+    files: ['blocker.js'],
+    world: 'MAIN',
+    injectImmediately: true
+  }).catch(() => {});
+});
 
 chrome.runtime.onInstalled.addListener(syncRegistration);
 chrome.runtime.onStartup.addListener(syncRegistration);
