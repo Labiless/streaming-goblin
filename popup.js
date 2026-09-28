@@ -3,7 +3,10 @@ const DEFAULTS = {
   domain: 'streamingcommunityz.photos',
   autoNext: true,
   autoNextValue: 30,
-  autoNextUnit: 's'
+  autoNextUnit: 's',
+  tracks: false,
+  tracksAudio: 'ita',
+  tracksSubs: 'forced-ita'
 };
 
 const domainInput = document.getElementById('domain');
@@ -105,6 +108,27 @@ clearHistoryBtn.addEventListener('click', async () => {
   render('History cleared');
 });
 
+// ---- Lingua e sottotitoli predefiniti ----
+// Letti al volo da autonext.js: si applicano subito anche all'episodio in corso
+const tracksBtn = document.getElementById('tracks');
+const tracksAudio = document.getElementById('tracks-audio');
+const tracksSubs = document.getElementById('tracks-subs');
+const tracksRow = document.getElementById('tracks-row');
+let tracks = false;
+
+function renderTracks() {
+  tracksBtn.textContent = tracks ? 'ON' : 'OFF';
+  tracksBtn.classList.toggle('on', tracks);
+  tracksRow.classList.toggle('disabled', !tracks);
+}
+tracksBtn.addEventListener('click', () => {
+  tracks = !tracks;
+  renderTracks();
+  chrome.storage.sync.set({ tracks });
+});
+tracksAudio.addEventListener('change', () => chrome.storage.sync.set({ tracksAudio: tracksAudio.value }));
+tracksSubs.addEventListener('change', () => chrome.storage.sync.set({ tracksSubs: tracksSubs.value }));
+
 chrome.storage.sync.get(DEFAULTS).then(s => {
   enabled = s.enabled;
   domainInput.value = s.domain;
@@ -112,6 +136,10 @@ chrome.storage.sync.get(DEFAULTS).then(s => {
   autoNext = s.autoNext;
   nextValueInput.value = s.autoNextValue;
   nextUnitSelect.value = s.autoNextUnit;
+  tracks = s.tracks;
+  tracksAudio.value = s.tracksAudio;
+  tracksSubs.value = s.tracksSubs;
   render();
   renderAutoNext();
+  renderTracks();
 });

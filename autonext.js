@@ -8,7 +8,10 @@
   if (window.__goblinAutoNextReady) return;
   window.__goblinAutoNextReady = true;
 
-  const DEFAULTS = { autoNext: true, autoNextValue: 30, autoNextUnit: 's' };
+  const DEFAULTS = {
+    autoNext: true, autoNextValue: 30, autoNextUnit: 's',
+    tracks: false, tracksAudio: 'ita', tracksSubs: 'forced-ita'
+  };
   const COUNTDOWN = 5;          // secondi di preavviso prima di cambiare episodio
   const MIN_DURATION = 120;     // ignora video troppo corti (trailer, intro…)
   const AUTOPLAY_KEY = '__goblinAutoplay';
@@ -21,6 +24,7 @@
     if (area !== 'sync') return;
     for (const k of Object.keys(DEFAULTS)) if (changes[k]) settings[k] = changes[k].newValue;
     if (!settings.autoNext) cancel();
+    if (changes.tracks || changes.tracksAudio || changes.tracksSubs) applyTracks();
   });
 
   // Il bottone esiste solo se c'è un episodio successivo (parametro nextEpisode=1)
@@ -468,7 +472,37 @@
     }, true);
   }
 
+  // ======== Lingua e sottotitoli predefiniti (vedi background.js) ========
+
+  // Nomi e codici lingua come compaiono nelle tracce del player
+  const AUDIO = {
+    ita: { label: 'Italian', lang: 'ita' },
+    eng: { label: 'English', lang: 'eng' }
+  };
+  const SUBS = {
+    off: { off: true },
+    'forced-ita': { label: 'Italian [Forced]', lang: 'forced-ita' },
+    ita: { label: 'Italian', lang: 'ita' },
+    eng: { label: 'English', lang: 'eng' },
+    'eng-cc': { label: 'English [CC]', lang: 'eng' }
+  };
+
+  function applyTracks() {
+    if (!scwsIdOf()) return; // non è il frame del player
+    const prefs = settings.tracks
+      ? { audio: AUDIO[settings.tracksAudio] || null, subs: SUBS[settings.tracksSubs] || null }
+      : null;
+    chrome.runtime.sendMessage({ type: 'jw-tracks', prefs }).catch(() => {});
+  }
+
   (async () => {
+    if (scwsIdOf()) {
+      // Appena il player è pronto; le impostazioni vanno lette prima
+      Promise.all([
+        chrome.storage.sync.get(DEFAULTS).then(s => { settings = s; }),
+        waitFor(() => document.querySelector('.jwplayer .jw-button-container'), 30000)
+      ]).then(([, ready]) => { if (ready) applyTracks(); });
+    }
     setupResume();
     const autoplayFlag = takeAutoplayFlag();
     if (autoplayFlag) return autoplay(autoplayFlag);

@@ -54,6 +54,16 @@ If that fails (for example because the site changed something), the box shows **
 - **Sound**: if Chrome refuses to start the video with sound, it starts muted and a box says **Click to unmute**. You can avoid this with the optional policy below.
 - **Fullscreen**: if you were watching in fullscreen, the box says **Click for fullscreen** (or **Click for sound & fullscreen**). One click or key press puts the new episode back in fullscreen, without pausing it. This click can't be avoided after a page reload. Chrome does have a policy for fullscreen without a click (`AutomaticFullscreenAllowedForUrls`), but in our tests on a personal Mac, Chrome accepted the policy and still refused fullscreen without a click.
 
+### Language
+
+The player normally goes back to its defaults (Italian audio, forced Italian subtitles) every time an episode starts, even if you had picked something else. In the popup's **Language** section you can choose your own defaults:
+
+- **ON / OFF**: turns the feature on or off (off by default, which keeps the site's defaults);
+- **Audio**: Italian or English;
+- **Subs**: Off, Forced IT (only the parts in a foreign language, the site's default), Italian, English or English CC.
+
+They're applied every time an episode starts, including when the next episode loads on its own. During the first 10 seconds the goblin keeps them in place, in case the player switches back to its defaults. After that it stops, so if you switch audio or subtitles in the player while watching, your choice stays until the next episode. If an episode doesn't have the language you chose, the player keeps its default. Changes in the popup apply right away, even to the episode that's playing.
+
 ### Continue watching
 
 The goblin remembers what you watch: series, episode and the minute you stopped at. The data never leaves the browser (it's kept only in the extension's local storage, no account or server) and covers the last 10 series.
@@ -177,7 +187,7 @@ Don't use it on regular websites: it would also break legitimate popups like "Si
 | `background.js` | Registers and injects the scripts on the chosen domain and its iframes; looks up the next episode for the seamless switch; keeps the watch history |
 | `blocker.js` | The popup blocker itself, running in the page context |
 | `toast.js` | Shows the "Popup blocked" toast |
-| `autonext.js` | Next-episode countdown, seamless episode switch, autoplay, watch progress and resume, inside the player |
+| `autonext.js` | Next-episode countdown, seamless episode switch, autoplay, watch progress, resume and default audio/subtitles, inside the player |
 | `continue.js` | The "Continue watching" box on the homepage |
 | `popup.html` / `popup.js` | The toolbar popup |
 | `fonts/` | Rubik Iso font, bundled locally |
@@ -186,7 +196,7 @@ Don't use it on regular websites: it would also break legitimate popups like "Si
 ## Permissions
 
 - **scripting**, **webNavigation**, **tabs**: inject the blocker into the chosen site and its player iframe.
-- **storage**: remember the domain, the on/off state, the next-episode settings and the watch history for **Continue watching** (stored locally, in this browser only).
+- **storage**: remember the domain, the on/off state, the next-episode and language settings and the watch history for **Continue watching** (stored locally, in this browser only).
 - **Access to all sites**: needed because the domain is configurable and the player is hosted elsewhere. The blocker only runs on tabs of the domain you set.
 
 No data is collected or sent anywhere.

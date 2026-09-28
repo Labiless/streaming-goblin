@@ -40,7 +40,7 @@
     body.off .goblin { filter: grayscale(1); opacity: .45; }
 
     h1 {
-      margin: 36px 0 0 136px;
+      margin: 28px 0 0 136px;
       font-size: 20px;
       font-weight: 400;
       text-align: center;
@@ -51,7 +51,7 @@
       position: relative; /* sopra il goblin */
       display: block;
       width: 250px;
-      height: 92px;
+      height: 84px;
       margin: 12px 0 0 80px;
       background: var(--black);
       color: var(--yellow);
@@ -66,7 +66,7 @@
     #toggle:focus-visible { background: var(--yellow); color: var(--black); outline: none; }
 
     h2 {
-      margin: 38px -14px 12px;
+      margin: 18px -14px 10px;
       font-size: 28px;
       font-weight: 400;
       text-align: center;
@@ -92,8 +92,8 @@
       gap: 8px;
       height: 44px;
     }
-    #autonext {
-      width: 96px;
+    #autonext, #tracks {
+      width: 80px;
       flex: none;
       background: var(--black);
       color: var(--yellow);
@@ -103,9 +103,9 @@
       cursor: pointer;
       transition: background .15s, color .15s;
     }
-    #autonext.on { background: var(--yellow); color: var(--black); }
-    #autonext:focus-visible { outline: 1px solid var(--yellow); outline-offset: 2px; }
-    #next-value, #next-unit {
+    #autonext.on, #tracks.on { background: var(--yellow); color: var(--black); }
+    #autonext:focus-visible, #tracks:focus-visible { outline: 1px solid var(--yellow); outline-offset: 2px; }
+    #next-value, #next-unit, #tracks-audio, #tracks-subs {
       min-width: 0;
       border: 0;
       border-radius: 0;
@@ -119,9 +119,12 @@
     #next-value { flex: 1; -moz-appearance: textfield; }
     #next-value::-webkit-inner-spin-button { opacity: 1; }
     #next-unit { flex: 1.4; cursor: pointer; padding: 0 8px; }
-    #next-value:focus, #next-unit:focus { box-shadow: 0 0 0 2px var(--black), 0 0 0 3px var(--yellow); }
-    .next-row.disabled #next-value,
-    .next-row.disabled #next-unit { opacity: .35; }
+    #tracks-audio, #tracks-subs { flex: 1; cursor: pointer; padding: 0 4px; font-size: 14px; }
+    #next-value:focus, #next-unit:focus, #tracks-audio:focus, #tracks-subs:focus {
+      box-shadow: 0 0 0 2px var(--black), 0 0 0 3px var(--yellow);
+    }
+    .next-row.disabled select,
+    .next-row.disabled input { opacity: .35; }
     .hint {
       margin-top: 8px;
       font: 12px system-ui, sans-serif;
@@ -131,7 +134,7 @@
 
     #clear-history {
       display: block;
-      margin: 18px auto 0;
+      margin: 14px auto 0;
       background: none;
       border: 0;
       color: var(--yellow);
@@ -173,7 +176,25 @@
       <option value="%">% of video</option>
     </select>
   </div>
-  <div class="hint">How long before the end to start a 5s countdown to the next episode</div>
+  <div class="hint">Countdown starts this long before the end</div>
+
+  <h2>Language</h2>
+
+  <div class="next-row" id="tracks-row">
+    <button id="tracks" title="Set audio and subtitles automatically">OFF</button>
+    <select id="tracks-audio" aria-label="Audio">
+      <option value="ita">Audio: Italian</option>
+      <option value="eng">Audio: English</option>
+    </select>
+    <select id="tracks-subs" aria-label="Subtitles">
+      <option value="off">Subs: Off</option>
+      <option value="forced-ita">Subs: Forced IT</option>
+      <option value="ita">Subs: Italian</option>
+      <option value="eng">Subs: English</option>
+      <option value="eng-cc">Subs: English CC</option>
+    </select>
+  </div>
+  <div class="hint">Set on every episode; you can still change them in the player</div>
 
   <button id="clear-history" hidden>Clear "Continue watching" history</button>
 

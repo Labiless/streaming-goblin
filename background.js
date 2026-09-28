@@ -312,3 +312,89 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse(!!t && Date.now() - t < 60000);
   }
 });
+
+// ======== Lingua e sottotitoli predefiniti (vedi autonext.js) ========
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type !== 'jw-tracks' || !sender.tab) return;
+  // JW Player è raggiungibile solo dal contesto della pagina del player
+  chrome.scripting.executeScript({
+    target: { tabId: sender.tab.id, frameIds: [sender.frameId] },
+    world: 'MAIN',
+    args: [msg.prefs],
+    func: prefs => {
+      const player = window.jwplayer?.('player');
+      if (!player?.getAudioTracks) return { ok: false, error: 'JW Player not found' };
+
+      const norm = s => String(s ?? '').trim().toLowerCase();
+      // Prima per nome esatto ("Italian [Forced]"), poi per codice lingua ("ita")
+      const find = (list, want, key) => {
+        let i = list.findIndex(t => norm(t[key]) === norm(want.label));
+        if (i < 0) i = list.findIndex(t => norm(t.language) === norm(want.lang));
+        return i;
+      };
+
+      const state = (window.__goblinTracks ??= { prefs: null, item: null, until: {}, lastSet: {}, timer: null });
+      state.prefs = prefs;
+
+      const itemKey = () => player.getPlaylistItem()?.sources?.[0]?.file || player.getPlaylistItem()?.file || '';
+      const kinds = {
+        audio: {
+          list: () => player.getAudioTracks() || [],
+          current: () => player.getCurrentAudioTrack(),
+          set: i => player.setCurrentAudioTrack(i),
+          index: (list, want) => find(list, want, 'name')
+        },
+        subs: {
+          list: () => player.getCaptionsList() || [],
+          current: () => player.getCurrentCaptions(),
+          set: i => player.setCurrentCaptions(i),
+          index: (list, want) => (want.off ? 0 : find(list, want, 'label'))
+        }
+      };
+
+      // Per i primi 10 s dopo che le tracce di un episodio sono pronte, la scelta viene
+      // imposta (il player a volte torna da solo a quelle predefinite dello stream).
+      // Dopo, un cambio fatto a mano nel player resta.
+      const WINDOW = 10000;
+      function tick() {
+        const key = itemKey();
+        if (key !== state.item) {
+          // Nuovo episodio (anche dopo un cambio al volo): si riparte
+          state.item = key;
+          state.until = {};
+        }
+        if (!state.prefs) return;
+        const now = Date.now();
+        for (const [kind, k] of Object.entries(kinds)) {
+          const want = state.prefs[kind];
+          const list = k.list();
+          if (!want || list.length < 2) continue; // tracce non ancora pronte (o una sola)
+          state.until[kind] ??= now + WINDOW;
+          if (now > state.until[kind]) continue;
+          // Dopo un cambio si lascia al player il tempo di applicarlo, per non ripeterlo a raffica
+          if (now - (state.lastSet[kind] || 0) < 2000) continue;
+          const i = k.index(list, want);
+          if (i >= 0 && i !== k.current()) {
+            state.lastSet[kind] = now;
+            k.set(i);
+            console.info('[Streaming Goblin]', kind, '->', list[i]?.name || list[i]?.label);
+          }
+        }
+      }
+
+      if (!state.timer) {
+        state.timer = setInterval(tick, 500);
+        // Gli eventi di JW Player fanno solo arrivare prima il controllo
+        for (const ev of ['playlistItem', 'audioTracks', 'captionsList', 'firstFrame']) player.on(ev, tick);
+      }
+      // Impostazioni appena cambiate (o player appena pronto): si applicano di nuovo
+      state.until = {};
+      tick();
+      return { ok: true };
+    }
+  })
+    .then(([res]) => sendResponse(res?.result || { ok: false, error: 'no result' }))
+    .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));
+  return true; // risposta asincrona
+});
