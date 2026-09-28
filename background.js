@@ -128,16 +128,22 @@ async function fetchPageProps(url) {
   return JSON.parse(decodeHtml(m[1])).props;
 }
 
-// Dall'indirizzo della tab (/it/watch/<titolo>?e=<episodio>) ricava l'episodio successivo
-// e il link del suo player vixcloud
-async function nextEpisodeInfo(tabUrl) {
+// Dalla pagina della tab (/it/watch/<titolo>, con o senza ?e=<episodio>) ricava l'episodio
+// successivo e il link del suo player vixcloud.
+// scwsId: l'id del video nel player, per essere sicuri di partire dall'episodio giusto.
+async function nextEpisodeInfo(tabUrl, scwsId) {
   const url = new URL(tabUrl);
   const m = url.pathname.match(/^(.*\/watch)\/(\d+)\/?$/);
-  const episodeId = url.searchParams.get('e');
-  if (!m || !episodeId) throw new Error('not an episode page');
+  if (!m) throw new Error('not an episode page');
   const watchUrl = id => `${url.origin}${m[1]}/${m[2]}?e=${id}`;
 
-  const current = await fetchPageProps(watchUrl(episodeId));
+  // Senza ?e= (es. bottone nella scheda della serie) è il sito a scegliere l'episodio:
+  // si legge quale dai dati della pagina stessa
+  const current = await fetchPageProps(url.href);
+  const playing = current.episode?.scws_id;
+  if (scwsId && playing && String(playing) !== String(scwsId)) {
+    throw new Error('current episode not recognised');
+  }
   const next = current.nextEpisode;
   if (!next?.id) throw new Error('no next episode');
 
@@ -161,7 +167,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!sender.tab) return;
 
   if (msg?.type === 'next-episode-info') {
-    nextEpisodeInfo(sender.tab.url)
+    nextEpisodeInfo(sender.tab.url, msg.scwsId)
       .then(sendResponse)
       .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));
     return true; // risposta asincrona

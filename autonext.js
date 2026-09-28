@@ -121,7 +121,8 @@
     const wasFullscreen = !!document.fullscreenElement;
     try {
       // Il background legge dal sito qual è l'episodio dopo e il link del suo player
-      const info = await chrome.runtime.sendMessage({ type: 'next-episode-info' });
+      const scwsId = location.pathname.match(/\/embed\/(\d+)/)?.[1];
+      const info = await chrome.runtime.sendMessage({ type: 'next-episode-info', scwsId });
       if (!info?.ok) throw new Error(info?.error || 'no response');
       const item = await buildPlaylistItem(info.playerUrl);
       // Solo dal contesto della pagina si può comandare JW Player
