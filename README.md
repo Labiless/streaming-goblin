@@ -47,16 +47,23 @@ When the episode reaches the threshold, a yellow box appears over the player: **
 
 The countdown pauses while the video is paused. Nothing happens on the last episode of a series, or on videos shorter than 2 minutes.
 
-The new episode **starts playing on its own**, whether you got there via the countdown or the player's next-episode button.
+The next episode is loaded **inside the same player, without reloading the page**, like on Netflix. It starts right away, **with sound**, and **stays in fullscreen** if you were in fullscreen. No Chrome settings are needed for this. The same happens when you press the player's next-episode button yourself. The address bar is updated too, so reloading the page keeps you on the new episode. A yellow box briefly shows the episode that's now playing.
 
-Chrome only lets a page play sound or go fullscreen right after you click or press a key, and a freshly loaded episode page hasn't had one yet. So:
+If that fails (for example because the site changed something), the box shows **Reloading page** with the reason, and the goblin falls back to the site's normal behaviour: it reloads the page on the next episode. The new episode then still starts on its own, but Chrome may not allow sound or fullscreen on a freshly loaded page without a click:
 
-- **Sound**: if Chrome refuses to start the video with sound, it starts muted and a box says **Click to unmute**. You can avoid this with the policy below.
-- **Fullscreen**: if you were watching in fullscreen, the box says **Click for fullscreen** (or **Click for sound & fullscreen**). One click or key press puts the new episode back in fullscreen, without pausing it. This click can't be avoided on a personal computer. Chrome does have a policy for fullscreen without a click (`AutomaticFullscreenAllowedForUrls`), but in our tests on a personal Mac, Chrome accepted the policy and still refused fullscreen without a click.
+- **Sound**: if Chrome refuses to start the video with sound, it starts muted and a box says **Click to unmute**. You can avoid this with the optional policy below.
+- **Fullscreen**: if you were watching in fullscreen, the box says **Click for fullscreen** (or **Click for sound & fullscreen**). One click or key press puts the new episode back in fullscreen, without pausing it. This click can't be avoided after a page reload. Chrome does have a policy for fullscreen without a click (`AutomaticFullscreenAllowedForUrls`), but in our tests on a personal Mac, Chrome accepted the policy and still refused fullscreen without a click.
 
-### Autoplay with sound
+### Autoplay with sound (optional)
 
-No extension can override Chrome's autoplay rules, but the `AutoplayAllowlist` browser policy can make an exception for the streaming site and its player. Setting it up once is enough, and it only affects the sites you list.
+**You normally don't need this.** Chrome allows sound on a page you've already clicked or pressed a key on. You start the first episode yourself by clicking play in the player, and the following ones are loaded in that same player, so they already get sound.
+
+The `AutoplayAllowlist` browser policy is a safety net for the cases where the page does reload:
+
+- the seamless switch fails and the goblin falls back to reloading the page;
+- the first episode started without you ever clicking or pressing a key inside the player (for example after such a reload).
+
+Without the policy, in those cases the video starts muted with **Click to unmute**. With it, Chrome always allows autoplay with sound on the streaming site and its player. No extension can override Chrome's autoplay rules, but this policy can. Setting it up once is enough, and it only affects the sites you list.
 
 The player is hosted on `vixcloud.co`. Replace `streamingcommunityz.photos` with the domain you're currently using.
 
@@ -129,7 +136,15 @@ The core is [`blocker.js`](blocker.js), injected into the page before any site s
 
 The extension injects it on every page load of the chosen domain (single-page navigations keep the patches, since the page never reloads), and also into the player iframe, which usually lives on a different domain.
 
-The next-episode feature ([`autonext.js`](autonext.js)) runs inside the player iframe. It watches the `<video>` playback time and, when the threshold is reached, presses the player's own "next episode" button, which tells the site to load the next episode. That button only exists when there is a next episode, so on the last one the goblin does nothing. When the new episode's player loads, the goblin presses play for you. To make that possible with sound, `blocker.js` also grants the player iframe the `autoplay` permission, which the site doesn't give it.
+The next-episode feature ([`autonext.js`](autonext.js)) runs inside the player iframe. It watches the `<video>` playback time and, when the threshold is reached, presses the player's own "next episode" button. That button only exists when there is a next episode, so on the last one the goblin does nothing.
+
+The click on that button never reaches the site, which would reload the page. Instead:
+
+1. `background.js` reads the episode page of the site, whose embedded data includes the next episode, then fetches that episode's player link;
+2. `autonext.js` reads the stream address from the new player page, the same way the player's own script does;
+3. the stream is loaded into the JW Player that's already open (`jwplayer().load()`), and the title, the next-episode button and the address bar are updated.
+
+Since the page never reloads, Chrome still counts your earlier clicks on it, so the video can play with sound and stay in fullscreen. If any step fails, the goblin asks the site to load the next episode the normal way. After that reload it presses play for you. To make that possible with sound, `blocker.js` also grants the player iframe the `autoplay` permission, which the site doesn't give it.
 
 `blocker.js` also works standalone: paste it into the DevTools console of the site to protect that single page, without the toast.
 
@@ -144,10 +159,10 @@ Don't use it on regular websites: it would also break legitimate popups like "Si
 | File | Purpose |
 | --- | --- |
 | `manifest.json` | Extension manifest (Manifest V3) |
-| `background.js` | Registers and injects the scripts on the chosen domain and its iframes |
+| `background.js` | Registers and injects the scripts on the chosen domain and its iframes; looks up the next episode for the seamless switch |
 | `blocker.js` | The popup blocker itself, running in the page context |
 | `toast.js` | Shows the "Popup blocked" toast |
-| `autonext.js` | Next-episode countdown and autoplay, inside the player |
+| `autonext.js` | Next-episode countdown, seamless episode switch and autoplay, inside the player |
 | `popup.html` / `popup.js` | The toolbar popup |
 | `fonts/` | Rubik Iso font, bundled locally |
 | `icons/`, `goblin.png` | Icons and artwork |

@@ -103,3 +103,86 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   })().catch(err => sendResponse({ ok: false, error: String(err?.message || err) }));
   return true; // risposta asincrona
 });
+
+// ======== Episodio successivo senza ricaricare la pagina (vedi autonext.js) ========
+
+async function fetchText(url) {
+  const res = await fetch(url, { credentials: 'include', signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status} - ${url}`);
+  return res.text();
+}
+
+function decodeHtml(s) {
+  const named = { quot: '"', amp: '&', lt: '<', gt: '>', apos: "'" };
+  return s.replace(/&(#x[\da-f]+|#\d+|quot|amp|lt|gt|apos);/gi, (_, e) =>
+    e[0] === '#'
+      ? String.fromCodePoint(e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10))
+      : named[e.toLowerCase()]);
+}
+
+// Le pagine del sito (Inertia) contengono tutti i dati dell'episodio nell'attributo data-page
+async function fetchPageProps(url) {
+  const html = await fetchText(url);
+  const m = html.match(/data-page="([^"]*)"/);
+  if (!m) throw new Error(`page data not found - ${url}`);
+  return JSON.parse(decodeHtml(m[1])).props;
+}
+
+// Dall'indirizzo della tab (/it/watch/<titolo>?e=<episodio>) ricava l'episodio successivo
+// e il link del suo player vixcloud
+async function nextEpisodeInfo(tabUrl) {
+  const url = new URL(tabUrl);
+  const m = url.pathname.match(/^(.*\/watch)\/(\d+)\/?$/);
+  const episodeId = url.searchParams.get('e');
+  if (!m || !episodeId) throw new Error('not an episode page');
+  const watchUrl = id => `${url.origin}${m[1]}/${m[2]}?e=${id}`;
+
+  const current = await fetchPageProps(watchUrl(episodeId));
+  const next = current.nextEpisode;
+  if (!next?.id) throw new Error('no next episode');
+
+  const nextProps = await fetchPageProps(watchUrl(next.id));
+  if (!nextProps.embedUrl) throw new Error('next episode has no player');
+  const iframeHtml = await fetchText(nextProps.embedUrl);
+  const src = iframeHtml.match(/<iframe[^>]*\ssrc="([^"]+\/embed\/[^"]+)"/)?.[1];
+  if (!src) throw new Error('player link not found');
+
+  const afterNext = nextProps.nextEpisode?.id;
+  return {
+    ok: true,
+    playerUrl: decodeHtml(src),
+    watchUrl: watchUrl(next.id),
+    hasNext: !!afterNext,
+    nextWatchUrl: afterNext ? watchUrl(afterNext) : null
+  };
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!sender.tab) return;
+
+  if (msg?.type === 'next-episode-info') {
+    nextEpisodeInfo(sender.tab.url)
+      .then(sendResponse)
+      .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));
+    return true; // risposta asincrona
+  }
+
+  if (msg?.type === 'jw-load') {
+    // JW Player è raggiungibile solo dal contesto della pagina del player
+    chrome.scripting.executeScript({
+      target: { tabId: sender.tab.id, frameIds: [sender.frameId] },
+      world: 'MAIN',
+      args: [msg.item],
+      func: item => {
+        const player = window.jwplayer?.('player');
+        if (!player?.load) return { ok: false, error: 'JW Player not found' };
+        player.load([item]);
+        player.play();
+        return { ok: true };
+      }
+    })
+      .then(([res]) => sendResponse(res?.result || { ok: false, error: 'no result' }))
+      .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));
+    return true;
+  }
+});

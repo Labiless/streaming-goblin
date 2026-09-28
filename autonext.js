@@ -1,7 +1,9 @@
 // Gira nel mondo isolato, dentro il frame del player (vixcloud / JW Player).
 // Quando l'episodio sta per finire mostra un conto alla rovescia e poi preme il bottone
-// "prossimo episodio" del player, che manda NEXT_EPISODE al sito e fa caricare l'episodio dopo.
-// Quando il nuovo episodio si carica, lo fa partire da solo (e a schermo intero, se lo eri).
+// "prossimo episodio" del player. Il cambio avviene "al volo": il nuovo episodio viene caricato
+// nello stesso player, senza ricaricare la pagina, così audio e schermo intero restano.
+// Se il cambio al volo fallisce, si ricarica la pagina come fa il sito e il nuovo episodio
+// parte da solo appena caricato.
 (() => {
   if (window.__goblinAutoNextReady) return;
   window.__goblinAutoNextReady = true;
@@ -97,16 +99,132 @@
     if (settings.autoNext && !dismissed) goNext();
   }, true);
 
-  // ======== Avvio automatico del nuovo episodio ========
+  // ======== Episodio successivo senza ricaricare la pagina ========
 
-  // Il click sul bottone "prossimo episodio" (nostro o tuo) lascia un segno che il player
-  // del nuovo episodio trova appena si carica: sessionStorage resta nella stessa tab.
-  // Il segno ricorda anche se eri a schermo intero.
+  const log = (...args) => console.info('[Streaming Goblin]', ...args);
+  let switching = false;
+  // Dopo un cambio al volo la pagina del sito crede di essere ancora sull'episodio vecchio:
+  // se serve ricaricare, bisogna dirle noi dove andare
+  let upcomingWatchUrl = null;
+
+  // Il click sul bottone "prossimo episodio" (nostro o tuo) non arriva al sito, che
+  // ricaricherebbe la pagina: il cambio lo facciamo noi
   document.addEventListener('click', e => {
     if (!e.target.closest?.('.next-episode')) return;
-    const flag = { t: Date.now(), fullscreen: !!document.fullscreenElement };
-    try { sessionStorage.setItem(AUTOPLAY_KEY, JSON.stringify(flag)); } catch {}
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    if (!switching) switchEpisode();
   }, true);
+
+  async function switchEpisode() {
+    switching = true;
+    const wasFullscreen = !!document.fullscreenElement;
+    try {
+      // Il background legge dal sito qual è l'episodio dopo e il link del suo player
+      const info = await chrome.runtime.sendMessage({ type: 'next-episode-info' });
+      if (!info?.ok) throw new Error(info?.error || 'no response');
+      const item = await buildPlaylistItem(info.playerUrl);
+      // Solo dal contesto della pagina si può comandare JW Player
+      const loaded = await chrome.runtime.sendMessage({ type: 'jw-load', item });
+      if (!loaded?.ok) throw new Error(loaded?.error || 'player not updated');
+
+      updatePlayerUi(item, info.hasNext);
+      try { history.replaceState(history.state, '', info.playerUrl); } catch {}
+      window.top.postMessage({ __goblin: 'episode-changed', url: info.watchUrl }, '*');
+      upcomingWatchUrl = info.nextWatchUrl;
+      triggered = false;
+      dismissed = false;
+      cancel();
+      log('next episode loaded without reloading:', item.description || item.title);
+      overlay.flash(`Now playing ${item.description || item.title}`, 3000);
+      if (!(await waitFor(isPlaying, 8000))) pressPlay();
+    } catch (err) {
+      const reason = err?.message || String(err);
+      log('seamless next episode failed, reloading the page -', reason);
+      // Il motivo resta visibile qualche secondo: la console dentro il player non è comoda da usare
+      overlay.show(`Reloading page (${reason.slice(0, 70)})`, false);
+      await sleep(3000);
+      reloadToNext(wasFullscreen);
+    } finally {
+      switching = false;
+    }
+  }
+
+  // Ricava l'indirizzo dello stream dalla pagina del player del nuovo episodio,
+  // come fa lo script del player stesso
+  async function buildPlaylistItem(playerUrl) {
+    const res = await fetch(playerUrl, { credentials: 'include' });
+    if (!res.ok) throw new Error(`player page HTTP ${res.status}`);
+    const html = await res.text();
+    const pick = re => html.match(re)?.[1];
+    const unescapeJs = v => v.replace(/\\\//g, '/');
+
+    const master = pick(/masterPlaylist\s*=\s*\{[\s\S]*?url:\s*'([^']+)'/);
+    if (!master) throw new Error('stream not found in player page');
+    const file = new URL(unescapeJs(master));
+    for (const key of ['token', 'expires', 'asn']) {
+      const v = pick(new RegExp(`'${key}'\\s*:\\s*'([^']*)'`));
+      if (v) file.searchParams.append(key, v);
+    }
+    const q = new URL(playerUrl).searchParams;
+    if (q.get('canPlayFHD')) file.searchParams.append('h', 1);
+    if (q.get('scz')) file.searchParams.append('scz', 1);
+    file.searchParams.append('lang', q.get('lang') ?? 'en');
+
+    const thumbnails = pick(/thumbnailsUrl\s*=\s*'([^']*)'/);
+    return {
+      sources: [{ default: false, type: 'hls', file: file.toString(), label: '0', preload: 'metadata' }],
+      title: decodeParam(q.get('t')),
+      description: decodeParam(q.get('d')),
+      tracks: thumbnails ? [{ file: unescapeJs(thumbnails), kind: 'thumbnails' }] : []
+    };
+  }
+
+  // Titolo e descrizione arrivano nel link del player codificati in base64 (UTF-8)
+  function decodeParam(v) {
+    if (!v) return '';
+    try {
+      return new TextDecoder().decode(Uint8Array.from(atob(v), c => c.charCodeAt(0)));
+    } catch {
+      return '';
+    }
+  }
+
+  function updatePlayerUi(item, hasNext) {
+    const setText = (selector, text) =>
+      document.querySelectorAll(selector).forEach(el => { el.textContent = text; });
+    setText('.video-title', item.title);
+    setText('.video-description', item.description);
+    setText('.video-title-mobile', [item.title, item.description].filter(Boolean).join(' '));
+    // Ultimo episodio: niente bottone, quindi niente conto alla rovescia
+    if (!hasNext) nextButton()?.remove();
+  }
+
+  // Riserva: si cambia episodio ricaricando la pagina, come fa il sito.
+  // Il segno in sessionStorage (resta nella stessa tab) fa partire da solo il nuovo episodio
+  // appena caricato, e ricorda se eri a schermo intero.
+  function reloadToNext(fullscreen) {
+    const flag = { t: Date.now(), fullscreen };
+    try { sessionStorage.setItem(AUTOPLAY_KEY, JSON.stringify(flag)); } catch {}
+    if (upcomingWatchUrl) window.top.postMessage({ __goblin: 'navigate', url: upcomingWatchUrl }, '*');
+    else window.top.postMessage('NEXT_EPISODE', '*');
+  }
+
+  // Nella pagina principale del sito: aggiorna l'indirizzo dopo un cambio al volo
+  // (così ricaricando resti sull'episodio giusto) o ci naviga se serve ricaricare
+  if (window === window.top) {
+    window.addEventListener('message', e => {
+      const type = e.data?.__goblin;
+      if (type !== 'episode-changed' && type !== 'navigate') return;
+      let url;
+      try { url = new URL(e.data.url, location.href); } catch { return; }
+      if (url.origin !== location.origin || !/\/watch\/\d+/.test(url.pathname)) return;
+      if (type === 'navigate') location.href = url.href;
+      else history.replaceState(history.state, '', url.href);
+    });
+  }
+
+  // ======== Avvio automatico dopo un ricaricamento ========
 
   function takeAutoplayFlag() {
     try {
@@ -207,7 +325,7 @@
 
   // ======== Riquadro giallo (conto alla rovescia / avvisi) ========
   const overlay = (() => {
-    let host, box, label, fontReady;
+    let host, box, label, fontReady, flashTimer;
 
     function loadFont() {
       fontReady ??= fetch(chrome.runtime.getURL('fonts/RubikIso-latin.woff2'))
@@ -283,7 +401,14 @@
         mount();
       },
       hide() {
+        clearTimeout(flashTimer);
         host?.remove();
+      },
+      // Messaggio che sparisce da solo, se nel frattempo non è stato sostituito
+      flash(text, ms) {
+        this.show(text, false);
+        clearTimeout(flashTimer);
+        flashTimer = setTimeout(() => { if (label.textContent === text) this.hide(); }, ms);
       }
     };
   })();
