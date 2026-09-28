@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Streaming Goblin",
-  "version": "1.12.0",
+  "version": "2.0.0",
   "description": "Blocca l'apertura di tab pubblicitarie sul dominio configurato.",
   "permissions": ["scripting", "storage", "tabs", "webNavigation"],
   "host_permissions": ["<all_urls>"],

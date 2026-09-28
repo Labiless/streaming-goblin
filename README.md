@@ -30,11 +30,17 @@ It works in any Chromium-based browser that supports extensions (but i tested it
 
 ## Usage
 
-Click the goblin in the toolbar to open the popup:
+Click the goblin in the toolbar to open the popup.
 
-- **START / STOP**: turns the blocker on or off. The button shows the action you can take, so it reads **STOP** while the blocker is active. When it's off the goblin turns grey.
-- **Update Domain**: the site to protect. Type or paste the domain (`streamingcommunityz.photos`) or a full URL (`https://streamingcommunityz.photos/...`). It's saved automatically as soon as you stop typing, or right away when you press Enter. Subdomains are covered too.
-- **Next Episode**: plays the next episode automatically. **ON / OFF** toggles it; the value next to it says how many **seconds** before the end to start (default: 30). Changes apply immediately, even to an episode that's already playing.
+- **Domain** (the field under the title): the site the goblin works on. Type or paste the domain (`streamingcommunityz.photos`) or a full URL (`https://streamingcommunityz.photos/...`). It's saved automatically as soon as you stop typing, or right away when you press Enter. Subdomains are covered too.
+- Every feature has its own **toggle**. When a feature is off, its name is dimmed. When it's on, the name is fully lit and, if the feature has settings, they open right below it:
+  - **Block popup**: blocks the ad tabs;
+  - **Auto next episode**: the slider sets how many **seconds** before the end the countdown starts (0 to 120, default 30);
+  - **Auto language**: audio and subtitles to set on every episode;
+  - **Skip intro**: when the intro starts and ends;
+  - **Resume episode**: remembers where you left off (see [Continue watching](#continue-watching)).
+
+  Changes apply immediately, even to an episode that's already playing. The features are independent of each other: turning off **Block popup** doesn't turn off the others.
 
 When a popup attempt is blocked, a small yellow **Popup blocked** toast appears at the bottom of the page (also in fullscreen). If several attempts are blocked in a row it shows a counter (`×2`, `×3`…).
 
@@ -56,17 +62,16 @@ If that fails (for example because the site changed something), the box shows **
 
 ### Language
 
-The player normally goes back to its defaults (Italian audio, forced Italian subtitles) every time an episode starts, even if you had picked something else. In the popup's **Language** section you can choose your own defaults:
+The player normally goes back to its defaults (Italian audio, forced Italian subtitles) every time an episode starts, even if you had picked something else. Turn on **Auto language** in the popup (it's off by default, which keeps the site's defaults) and choose:
 
-- **ON / OFF**: turns the feature on or off (off by default, which keeps the site's defaults);
 - **Audio**: Italian or English;
-- **Subs**: Off, Forced IT (only the parts in a foreign language, the site's default), Italian, English or English CC.
+- **Sub**: Off, Forced IT (only the parts in a foreign language, the site's default), Italian, English or English CC.
 
 They're applied every time an episode starts, including when the next episode loads on its own. During the first 10 seconds the goblin keeps them in place, in case the player switches back to its defaults. After that it stops, so if you switch audio or subtitles in the player while watching, your choice stays until the next episode. If an episode doesn't have the language you chose, the player keeps its default. Changes in the popup apply right away, even to the episode that's playing.
 
 ### Skip Intro
 
-In the popup's **Skip Intro** section, enter when the intro starts and ends as `minutes:seconds` (e.g. **from** `0:45` **to** `1:30`) and turn it **ON**. You can do this from any page, you don't need to be on the player.
+Turn on **Skip intro** in the popup and enter when the intro starts and ends as `minutes:seconds` (e.g. **from** `0:45` **to** `1:30`). You can do this from any page, you don't need to be on the player.
 
 Whenever playback reaches the start of the intro, the player jumps to its end and briefly shows **Intro skipped**. It only skips when the video *plays into* the intro: if you drag the progress bar back into it yourself, the goblin leaves it alone.
 
@@ -74,7 +79,7 @@ The times apply to **every episode** and stay saved until you change them, so wh
 
 ### Continue watching
 
-The goblin remembers what you watch: series, episode and the minute you stopped at. You can turn this on or off in the popup's **Continue Watching** section (on by default); when it's off, nothing is recorded, episodes don't resume and the homepage box doesn't appear. The data never leaves the browser (it's kept only in the extension's local storage, no account or server) and covers the last 10 series.
+The goblin remembers what you watch: series, episode and the minute you stopped at. You can turn this on or off with the **Resume episode** toggle in the popup (on by default); when it's off, nothing is recorded, episodes don't resume and the homepage box doesn't appear. The data never leaves the browser (it's kept only in the extension's local storage, no account or server) and covers the last 10 series.
 
 A few seconds after you open the site's **homepage**, a yellow-and-black **Continue watching** box appears at the bottom of the page with the last thing you watched:
 
@@ -85,7 +90,7 @@ A few seconds after you open the site's **homepage**, a yellow-and-black **Conti
 
 If you finished an episode, the box offers the **next one** from the start. After the last episode of a series, or after a movie, the entry disappears. The box only appears on the homepage, and it's added by the extension on top of the page, so it doesn't depend on the site's layout.
 
-To wipe the history, use **Clear history** in the same section (it shows how many series are saved). Turning the feature off keeps the history, in case you turn it back on.
+Turning the feature off keeps the history, in case you turn it back on. To forget a single series, use **Remove** in the homepage box.
 
 ### Autoplay with sound (optional)
 
@@ -154,7 +159,7 @@ On some personal computers Chrome may ignore the policy. As an alternative, star
 ### Good to know
 
 - **The site changed domain?** Just type the new one in the popup. Open tabs of the new domain are protected immediately, no reload needed.
-- **After pressing STOP**, pages you already have open stay protected until you reload them.
+- **After turning off Block popup**, pages you already have open stay protected until you reload them.
 - **Links that legitimately open in a new tab** (e.g. a Telegram link) are blocked too. Use **Ctrl/Cmd + click** to open them anyway.
 
 ## How it works

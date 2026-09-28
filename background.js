@@ -1,5 +1,6 @@
 const SCRIPT_ID = 'sc-blocker';
 const TOAST_ID = 'sc-toast';
+const ISOLATED_SCRIPTS = ['toast.js', 'autonext.js', 'continue.js'];
 const DEFAULTS = { enabled: true, domain: 'streamingcommunityz.photos' };
 
 // Accetta sia "https://sito.xyz/qualcosa" sia "sito.xyz"
@@ -30,48 +31,54 @@ async function getSettings() {
   return chrome.storage.sync.get(DEFAULTS);
 }
 
-// Registra (o rimuove) lo script che Chrome inietta a ogni caricamento pagina,
-// prima di qualsiasi script del sito (document_start, MAIN world).
+// Registra gli script che Chrome inietta a ogni caricamento pagina del sito.
+// "enabled" è il toggle "Block popup": riguarda solo blocker.js. Le altre funzioni
+// (episodio successivo, lingua, sigla, ripresa) hanno ciascuna il proprio toggle.
 async function syncRegistration() {
   const { enabled, domain } = await getSettings();
 
   const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [SCRIPT_ID, TOAST_ID] });
   if (existing.length) await chrome.scripting.unregisterContentScripts({ ids: existing.map(s => s.id) });
 
-  if (!enabled || !domain) return;
+  if (!domain) return;
 
-  await chrome.scripting.registerContentScripts([{
-    id: SCRIPT_ID,
-    js: ['blocker.js'],
-    matches: matchPatterns(domain),
-    runAt: 'document_start',
-    world: 'MAIN',
-    allFrames: true,
-    persistAcrossSessions: true
-  }, {
-    // Toast, episodio successivo e "Continue watching" girano nel mondo isolato
+  const scripts = [{
+    // Toast, episodio successivo, lingua, sigla e "Continue watching" girano nel mondo isolato
     // dell'estensione, separato dagli script del sito, da dove possono leggere le impostazioni
     id: TOAST_ID,
-    js: ['toast.js', 'autonext.js', 'continue.js'],
+    js: ISOLATED_SCRIPTS,
     matches: matchPatterns(domain),
     runAt: 'document_start',
     allFrames: true,
     persistAcrossSessions: true
-  }]);
+  }];
+  if (enabled) {
+    // Prima di qualsiasi script del sito (document_start, MAIN world)
+    scripts.push({
+      id: SCRIPT_ID,
+      js: ['blocker.js'],
+      matches: matchPatterns(domain),
+      runAt: 'document_start',
+      world: 'MAIN',
+      allFrames: true,
+      persistAcrossSessions: true
+    });
+  }
+  await chrome.scripting.registerContentScripts(scripts);
 
-  await injectIntoOpenTabs(domain);
+  await injectIntoOpenTabs(domain, enabled);
 }
 
-// Inietta subito nelle tab già aperte, così non serve ricaricare dopo "Start"
-async function injectIntoOpenTabs(domain) {
+// Inietta subito nelle tab già aperte, così non serve ricaricare
+async function injectIntoOpenTabs(domain, blockPopups) {
   const tabs = await chrome.tabs.query({ url: matchPatterns(domain) });
-  await Promise.all(tabs.map(tab => injectInto({ tabId: tab.id, allFrames: true })));
+  await Promise.all(tabs.map(tab => injectInto({ tabId: tab.id, allFrames: true }, blockPopups)));
 }
 
-function injectInto(target, extra = {}) {
+function injectInto(target, blockPopups, extra = {}) {
   return Promise.all([
-    chrome.scripting.executeScript({ target, files: ['blocker.js'], world: 'MAIN', ...extra }),
-    chrome.scripting.executeScript({ target, files: ['toast.js', 'autonext.js', 'continue.js'], ...extra })
+    blockPopups && chrome.scripting.executeScript({ target, files: ['blocker.js'], world: 'MAIN', ...extra }),
+    chrome.scripting.executeScript({ target, files: ISOLATED_SCRIPTS, ...extra })
   ]).catch(() => {});
 }
 
@@ -80,10 +87,10 @@ function injectInto(target, extra = {}) {
 chrome.webNavigation.onCommitted.addListener(async ({ tabId, frameId, url }) => {
   if (frameId === 0 || !/^https?:/.test(url)) return;
   const { enabled, domain } = await getSettings();
-  if (!enabled || !domain) return;
+  if (!domain) return;
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   if (!tab?.url || !hostMatches(tab.url, domain)) return;
-  injectInto({ tabId, frameIds: [frameId] }, { injectImmediately: true });
+  injectInto({ tabId, frameIds: [frameId] }, enabled, { injectImmediately: true });
 });
 
 chrome.runtime.onInstalled.addListener(syncRegistration);

@@ -1,5 +1,5 @@
 const DEFAULTS = {
-  enabled: true,
+  enabled: true,              // "Block popup"
   domain: 'streamingcommunityz.photos',
   autoNext: true,
   autoNextValue: 30,
@@ -12,145 +12,95 @@ const DEFAULTS = {
   continueWatching: true
 };
 
-const domainInput = document.getElementById('domain');
-const toggleBtn = document.getElementById('toggle');
-const statusEl = document.getElementById('status');
-const autoNextBtn = document.getElementById('autonext');
-const nextValueInput = document.getElementById('next-value');
-const nextRow = document.getElementById('next-row');
+const $ = id => document.getElementById(id);
+const statusEl = $('status');
+const domainInput = $('domain');
 
-let enabled = true;
 let savedDomain = '';
-let debounceTimer;
+let enabled = true;
 
-function render(message = '') {
-  toggleBtn.textContent = enabled ? 'STOP' : 'START';
-  document.body.classList.toggle('off', !enabled);
+function showStatus(message = '') {
   statusEl.textContent = message;
 }
 
-// fromTyping: non riscrive il campo mentre stai digitando (sposterebbe il cursore)
-async function save(newEnabled, fromTyping = false) {
-  const res = await chrome.runtime.sendMessage({
-    type: 'save',
-    enabled: newEnabled,
-    domain: domainInput.value
+// ======== Toggle delle funzioni ========
+// Ogni sezione ha data-key = impostazione che accende/spegne. Da accesa il nome è pieno
+// e si apre l'accordion con le impostazioni (se ne ha).
+
+function setFeature(key, on) {
+  const section = document.querySelector(`.feature[data-key="${key}"]`);
+  section.classList.toggle('on', on);
+  $(`sw-${key}`).setAttribute('aria-checked', String(on));
+}
+
+for (const section of document.querySelectorAll('.feature')) {
+  const key = section.dataset.key;
+  $(`sw-${key}`).addEventListener('click', async () => {
+    const on = !section.classList.contains('on');
+    setFeature(key, on);
+    // "Block popup" cambia gli script iniettati: ci pensa il background
+    if (key === 'enabled') {
+      const ok = await saveDomainAndBlocker(on, savedDomain);
+      if (ok && !on) showStatus('Reload the page to fully turn off popup blocking');
+      return;
+    }
+    chrome.storage.sync.set({ [key]: on });
   });
+}
+
+// ======== Dominio (salvato da solo mentre scrivi) ========
+
+async function saveDomainAndBlocker(newEnabled, domain, fromTyping = false) {
+  const res = await chrome.runtime.sendMessage({ type: 'save', enabled: newEnabled, domain });
   if (!res?.ok) {
-    render(res?.error || 'Errore');
-    return;
+    showStatus(res?.error || 'Error');
+    return false;
   }
-  const wasEnabled = enabled;
   enabled = newEnabled;
   savedDomain = res.domain;
   if (!fromTyping) domainInput.value = res.domain;
-  render(wasEnabled && !enabled ? 'Ricarica la pagina per disattivarlo del tutto' : '');
+  showStatus('');
+  return true;
 }
 
-toggleBtn.addEventListener('click', () => save(!enabled));
-
-// Salvataggio automatico del dominio: poco dopo che smetti di scrivere,
-// oppure subito con Invio o quando il campo perde il focus
+let domainTimer;
+// fromTyping: non riscrive il campo mentre stai digitando (sposterebbe il cursore)
 function saveDomainIfChanged(fromTyping) {
-  clearTimeout(debounceTimer);
-  if (!domainInput.value.trim()) return;
-  if (domainInput.value.trim() === savedDomain) {
+  clearTimeout(domainTimer);
+  const value = domainInput.value.trim();
+  if (!value) return;
+  if (value === savedDomain) {
     if (!fromTyping) domainInput.value = savedDomain;
     return;
   }
-  save(enabled, fromTyping);
+  saveDomainAndBlocker(enabled, domainInput.value, fromTyping);
 }
 domainInput.addEventListener('input', () => {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => saveDomainIfChanged(true), 400);
+  clearTimeout(domainTimer);
+  domainTimer = setTimeout(() => saveDomainIfChanged(true), 400);
 });
 domainInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveDomainIfChanged(false); });
 domainInput.addEventListener('blur', () => saveDomainIfChanged(false));
 
-// ---- Episodio successivo automatico ----
-// Letto al volo da autonext.js: nessun ricaricamento necessario
-let autoNext = true;
-let nextValueTimer;
+// ======== Auto next episode: secondi prima della fine ========
 
-function renderAutoNext() {
-  autoNextBtn.textContent = autoNext ? 'ON' : 'OFF';
-  autoNextBtn.classList.toggle('on', autoNext);
-  nextRow.classList.toggle('disabled', !autoNext);
-}
+const nextValue = $('next-value');
+const nextLabel = $('next-label');
+const renderNextValue = () => { nextLabel.textContent = `${nextValue.value}S`; };
+nextValue.addEventListener('input', renderNextValue);
+nextValue.addEventListener('change', () => chrome.storage.sync.set({ autoNextValue: Number(nextValue.value) }));
 
-autoNextBtn.addEventListener('click', () => {
-  autoNext = !autoNext;
-  renderAutoNext();
-  chrome.storage.sync.set({ autoNext });
-});
+// ======== Auto language ========
 
-function saveNextValue() {
-  clearTimeout(nextValueTimer);
-  const value = Math.min(600, Math.max(0, Math.round(Number(nextValueInput.value) || 0)));
-  chrome.storage.sync.set({ autoNextValue: value });
-  return value;
-}
-nextValueInput.addEventListener('input', () => {
-  clearTimeout(nextValueTimer);
-  nextValueTimer = setTimeout(saveNextValue, 400);
-});
-nextValueInput.addEventListener('change', () => { nextValueInput.value = saveNextValue(); });
-
-// ---- Continue watching: cronologia e ripresa (salvata solo in questo browser) ----
-const continueBtn = document.getElementById('continue');
-const clearHistoryBtn = document.getElementById('clear-history');
-const continueRow = document.getElementById('continue-row');
-let continueWatching = true;
-
-function renderContinue() {
-  continueBtn.textContent = continueWatching ? 'ON' : 'OFF';
-  continueBtn.classList.toggle('on', continueWatching);
-  continueRow.classList.toggle('disabled', !continueWatching);
-}
-continueBtn.addEventListener('click', () => {
-  continueWatching = !continueWatching;
-  renderContinue();
-  chrome.storage.sync.set({ continueWatching });
-});
-
-function renderHistoryCount(count) {
-  clearHistoryBtn.disabled = !count;
-  clearHistoryBtn.textContent = count ? `Clear history (${count})` : 'No history yet';
-}
-chrome.storage.local.get({ history: [] }).then(({ history }) => renderHistoryCount(history.length));
-clearHistoryBtn.addEventListener('click', async () => {
-  await chrome.storage.local.remove('history');
-  renderHistoryCount(0);
-  render('History cleared');
-});
-
-// ---- Lingua e sottotitoli predefiniti ----
-// Letti al volo da autonext.js: si applicano subito anche all'episodio in corso
-const tracksBtn = document.getElementById('tracks');
-const tracksAudio = document.getElementById('tracks-audio');
-const tracksSubs = document.getElementById('tracks-subs');
-const tracksRow = document.getElementById('tracks-row');
-let tracks = false;
-
-function renderTracks() {
-  tracksBtn.textContent = tracks ? 'ON' : 'OFF';
-  tracksBtn.classList.toggle('on', tracks);
-  tracksRow.classList.toggle('disabled', !tracks);
-}
-tracksBtn.addEventListener('click', () => {
-  tracks = !tracks;
-  renderTracks();
-  chrome.storage.sync.set({ tracks });
-});
+const tracksAudio = $('tracks-audio');
+const tracksSubs = $('tracks-subs');
 tracksAudio.addEventListener('change', () => chrome.storage.sync.set({ tracksAudio: tracksAudio.value }));
 tracksSubs.addEventListener('change', () => chrome.storage.sync.set({ tracksSubs: tracksSubs.value }));
 
-// ---- Salta la sigla: orari unici, validi per ogni episodio finché non li cambi ----
-const introBtn = document.getElementById('intro');
-const introStart = document.getElementById('intro-start');
-const introEnd = document.getElementById('intro-end');
-const introRow = document.getElementById('intro-row');
-let introSkip = false;
+// ======== Skip intro: orari validi per ogni episodio finché non li cambi ========
+
+const introStart = $('intro-start');
+const introEnd = $('intro-end');
 let introTimer;
 
 // "1:30" → 90, "90" → 90, "1:02:03" → 3723; vuoto o non valido → null
@@ -161,29 +111,16 @@ function parseTime(text) {
 }
 const formatTime = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
-function renderIntro() {
-  introBtn.textContent = introSkip ? 'ON' : 'OFF';
-  introBtn.classList.toggle('on', introSkip);
-  introRow.classList.toggle('disabled', !introSkip);
-}
-
-introBtn.addEventListener('click', () => {
-  introSkip = !introSkip;
-  renderIntro();
-  chrome.storage.sync.set({ introSkip });
-});
-
-// Letti al volo da autonext.js: valgono subito, anche per l'episodio in corso
 function saveIntroTimes() {
   clearTimeout(introTimer);
   const start = parseTime(introStart.value);
   const end = parseTime(introEnd.value);
   if (start === null || end === null) return;
   if (end <= start) {
-    render('Intro: the end must come after the start (e.g. 0:45 → 1:30)');
+    showStatus('Skip intro: the end must come after the start');
     return;
   }
-  render('');
+  showStatus('');
   chrome.storage.sync.set({ introStart: start, introEnd: end });
 }
 for (const input of [introStart, introEnd]) {
@@ -198,22 +135,22 @@ for (const input of [introStart, introEnd]) {
   });
 }
 
+// ======== Stato iniziale ========
+
 chrome.storage.sync.get(DEFAULTS).then(s => {
   enabled = s.enabled;
-  domainInput.value = s.domain;
   savedDomain = s.domain;
-  autoNext = s.autoNext;
-  nextValueInput.value = s.autoNextValue;
-  tracks = s.tracks;
+  domainInput.value = s.domain;
+
+  nextValue.value = Math.min(Number(nextValue.max), s.autoNextValue);
+  renderNextValue();
   tracksAudio.value = s.tracksAudio;
   tracksSubs.value = s.tracksSubs;
-  introSkip = s.introSkip;
   if (s.introStart != null) introStart.value = formatTime(s.introStart);
   if (s.introEnd != null) introEnd.value = formatTime(s.introEnd);
-  render();
-  renderAutoNext();
-  continueWatching = s.continueWatching;
-  renderTracks();
-  renderIntro();
-  renderContinue();
+
+  // Niente animazione dell'accordion all'apertura del popup
+  document.body.classList.add('no-anim');
+  for (const key of ['enabled', 'autoNext', 'tracks', 'introSkip', 'continueWatching']) setFeature(key, !!s[key]);
+  requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove('no-anim')));
 });
