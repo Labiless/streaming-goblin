@@ -8,7 +8,8 @@ const DEFAULTS = {
   tracksSubs: 'forced-ita',
   introSkip: false,
   introStart: null,
-  introEnd: null
+  introEnd: null,
+  continueWatching: true
 };
 
 const domainInput = document.getElementById('domain');
@@ -95,15 +96,31 @@ nextValueInput.addEventListener('input', () => {
 });
 nextValueInput.addEventListener('change', () => { nextValueInput.value = saveNextValue(); });
 
-// ---- Cronologia di "Continue watching" (salvata solo in questo browser) ----
+// ---- Continue watching: cronologia e ripresa (salvata solo in questo browser) ----
+const continueBtn = document.getElementById('continue');
 const clearHistoryBtn = document.getElementById('clear-history');
+const continueRow = document.getElementById('continue-row');
+let continueWatching = true;
 
-chrome.storage.local.get({ history: [] }).then(({ history }) => {
-  clearHistoryBtn.hidden = !history.length;
+function renderContinue() {
+  continueBtn.textContent = continueWatching ? 'ON' : 'OFF';
+  continueBtn.classList.toggle('on', continueWatching);
+  continueRow.classList.toggle('disabled', !continueWatching);
+}
+continueBtn.addEventListener('click', () => {
+  continueWatching = !continueWatching;
+  renderContinue();
+  chrome.storage.sync.set({ continueWatching });
 });
+
+function renderHistoryCount(count) {
+  clearHistoryBtn.disabled = !count;
+  clearHistoryBtn.textContent = count ? `Clear history (${count})` : 'No history yet';
+}
+chrome.storage.local.get({ history: [] }).then(({ history }) => renderHistoryCount(history.length));
 clearHistoryBtn.addEventListener('click', async () => {
   await chrome.storage.local.remove('history');
-  clearHistoryBtn.hidden = true;
+  renderHistoryCount(0);
   render('History cleared');
 });
 
@@ -195,6 +212,8 @@ chrome.storage.sync.get(DEFAULTS).then(s => {
   if (s.introEnd != null) introEnd.value = formatTime(s.introEnd);
   render();
   renderAutoNext();
+  continueWatching = s.continueWatching;
   renderTracks();
   renderIntro();
+  renderContinue();
 });

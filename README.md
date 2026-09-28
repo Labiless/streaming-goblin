@@ -74,7 +74,7 @@ The times apply to **every episode** and stay saved until you change them, so wh
 
 ### Continue watching
 
-The goblin remembers what you watch: series, episode and the minute you stopped at. The data never leaves the browser (it's kept only in the extension's local storage, no account or server) and covers the last 10 series.
+The goblin remembers what you watch: series, episode and the minute you stopped at. You can turn this on or off in the popup's **Continue Watching** section (on by default); when it's off, nothing is recorded, episodes don't resume and the homepage box doesn't appear. The data never leaves the browser (it's kept only in the extension's local storage, no account or server) and covers the last 10 series.
 
 A few seconds after you open the site's **homepage**, a yellow-and-black **Continue watching** box appears at the bottom of the page with the last thing you watched:
 
@@ -85,7 +85,7 @@ A few seconds after you open the site's **homepage**, a yellow-and-black **Conti
 
 If you finished an episode, the box offers the **next one** from the start. After the last episode of a series, or after a movie, the entry disappears. The box only appears on the homepage, and it's added by the extension on top of the page, so it doesn't depend on the site's layout.
 
-To wipe the history, use **Clear "Continue watching" history** in the popup.
+To wipe the history, use **Clear history** in the same section (it shows how many series are saved). Turning the feature off keeps the history, in case you turn it back on.
 
 ### Autoplay with sound (optional)
 

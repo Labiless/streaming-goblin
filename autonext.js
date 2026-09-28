@@ -11,7 +11,8 @@
   const DEFAULTS = {
     autoNext: true, autoNextValue: 30,
     tracks: false, tracksAudio: 'ita', tracksSubs: 'forced-ita',
-    introSkip: false, introStart: null, introEnd: null
+    introSkip: false, introStart: null, introEnd: null,
+    continueWatching: true
   };
   const COUNTDOWN = 5;          // secondi di preavviso prima di cambiare episodio
   const MIN_DURATION = 120;     // ignora video troppo corti (trailer, intro…)
@@ -439,6 +440,7 @@
   function reportProgress(force) {
     const v = getVideo();
     const scwsId = scwsIdOf();
+    if (!settings.continueWatching) return;
     if (!v || !scwsId || !isFinite(v.duration) || v.duration < MIN_DURATION || v.currentTime < 10) return;
     const now = Date.now();
     if (!force && now - lastReport < 10000) return;
@@ -458,6 +460,8 @@
   async function setupResume() {
     const scwsId = scwsIdOf();
     if (!scwsId) return;
+    const { continueWatching } = await chrome.storage.sync.get({ continueWatching: true });
+    if (!continueWatching) return;
     const { history = [] } = await chrome.storage.local.get({ history: [] });
     const saved = history.find(e => e.scwsId === scwsId);
     if (!saved || saved.position < 30 || saved.duration - saved.position < 60) return;

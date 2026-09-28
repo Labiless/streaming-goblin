@@ -43,6 +43,9 @@
   }
 
   async function show() {
+    // Funzione spenta dal popup: niente riquadro
+    const { continueWatching } = await chrome.storage.sync.get({ continueWatching: true });
+    if (!continueWatching) return hide();
     const [entry] = await getHistory();
     if (!entry || !isHome()) return hide();
     loadFont();
