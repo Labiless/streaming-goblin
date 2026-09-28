@@ -34,7 +34,7 @@ Click the goblin in the toolbar to open the popup:
 
 - **START / STOP**: turns the blocker on or off. The button shows the action you can take, so it reads **STOP** while the blocker is active. When it's off the goblin turns grey.
 - **Update Domain**: the site to protect. Type or paste the domain (`streamingcommunityz.photos`) or a full URL (`https://streamingcommunityz.photos/...`). It's saved automatically as soon as you stop typing, or right away when you press Enter. Subdomains are covered too.
-- **Next Episode**: plays the next episode automatically. **ON / OFF** toggles it; the value next to it says when to start, either in **seconds** before the end (default: 30) or as a **% of the video**. Changes apply immediately, even to an episode that's already playing.
+- **Next Episode**: plays the next episode automatically. **ON / OFF** toggles it; the value next to it says how many **seconds** before the end to start (default: 30). Changes apply immediately, even to an episode that's already playing.
 
 When a popup attempt is blocked, a small yellow **Popup blocked** toast appears at the bottom of the page (also in fullscreen). If several attempts are blocked in a row it shows a counter (`×2`, `×3`…).
 
@@ -63,6 +63,14 @@ The player normally goes back to its defaults (Italian audio, forced Italian sub
 - **Subs**: Off, Forced IT (only the parts in a foreign language, the site's default), Italian, English or English CC.
 
 They're applied every time an episode starts, including when the next episode loads on its own. During the first 10 seconds the goblin keeps them in place, in case the player switches back to its defaults. After that it stops, so if you switch audio or subtitles in the player while watching, your choice stays until the next episode. If an episode doesn't have the language you chose, the player keeps its default. Changes in the popup apply right away, even to the episode that's playing.
+
+### Skip Intro
+
+In the popup's **Skip Intro** section, enter when the intro starts and ends as `minutes:seconds` (e.g. **from** `0:45` **to** `1:30`) and turn it **ON**. You can do this from any page, you don't need to be on the player.
+
+Whenever playback reaches the start of the intro, the player jumps to its end and briefly shows **Intro skipped**. It only skips when the video *plays into* the intro: if you drag the progress bar back into it yourself, the goblin leaves it alone.
+
+The times apply to **every episode** and stay saved until you change them, so when you switch to a series whose intro is at a different time, update them (or turn the feature off). Changes apply right away, even to the episode that's playing.
 
 ### Continue watching
 
@@ -187,7 +195,7 @@ Don't use it on regular websites: it would also break legitimate popups like "Si
 | `background.js` | Registers and injects the scripts on the chosen domain and its iframes; looks up the next episode for the seamless switch; keeps the watch history |
 | `blocker.js` | The popup blocker itself, running in the page context |
 | `toast.js` | Shows the "Popup blocked" toast |
-| `autonext.js` | Next-episode countdown, seamless episode switch, autoplay, watch progress, resume and default audio/subtitles, inside the player |
+| `autonext.js` | Next-episode countdown, seamless episode switch, autoplay, watch progress, resume, default audio/subtitles and intro skipping, inside the player |
 | `continue.js` | The "Continue watching" box on the homepage |
 | `popup.html` / `popup.js` | The toolbar popup |
 | `fonts/` | Rubik Iso font, bundled locally |
@@ -196,7 +204,7 @@ Don't use it on regular websites: it would also break legitimate popups like "Si
 ## Permissions
 
 - **scripting**, **webNavigation**, **tabs**: inject the blocker into the chosen site and its player iframe.
-- **storage**: remember the domain, the on/off state, the next-episode and language settings and the watch history for **Continue watching** (stored locally, in this browser only).
+- **storage**: remember the domain, the on/off state, the next-episode, language and intro settings and the watch history for **Continue watching** (stored locally, in this browser only).
 - **Access to all sites**: needed because the domain is configurable and the player is hosted elsewhere. The blocker only runs on tabs of the domain you set.
 
 No data is collected or sent anywhere.

@@ -20,7 +20,7 @@
     body {
       width: 420px;
       margin: 0;
-      padding: 18px 28px 14px;
+      padding: 18px 28px 10px;
       background: var(--black);
       color: var(--yellow);
       font-family: 'Rubik Iso', system-ui, sans-serif;
@@ -40,7 +40,7 @@
     body.off .goblin { filter: grayscale(1); opacity: .45; }
 
     h1 {
-      margin: 28px 0 0 136px;
+      margin: 20px 0 0 136px;
       font-size: 20px;
       font-weight: 400;
       text-align: center;
@@ -51,13 +51,13 @@
       position: relative; /* sopra il goblin */
       display: block;
       width: 250px;
-      height: 84px;
-      margin: 12px 0 0 80px;
+      height: 70px;
+      margin: 10px 0 0 80px;
       background: var(--black);
       color: var(--yellow);
       border: 1px solid var(--yellow);
       font-family: inherit;
-      font-size: 54px;
+      font-size: 46px;
       letter-spacing: 1px;
       cursor: pointer;
       transition: background .15s, color .15s;
@@ -66,8 +66,8 @@
     #toggle:focus-visible { background: var(--yellow); color: var(--black); outline: none; }
 
     h2 {
-      margin: 18px -14px 10px;
-      font-size: 28px;
+      margin: 16px -14px 8px;
+      font-size: 22px;
       font-weight: 400;
       text-align: center;
     }
@@ -92,7 +92,7 @@
       gap: 8px;
       height: 44px;
     }
-    #autonext, #tracks {
+    .toggle {
       width: 80px;
       flex: none;
       background: var(--black);
@@ -103,9 +103,10 @@
       cursor: pointer;
       transition: background .15s, color .15s;
     }
-    #autonext.on, #tracks.on { background: var(--yellow); color: var(--black); }
-    #autonext:focus-visible, #tracks:focus-visible { outline: 1px solid var(--yellow); outline-offset: 2px; }
-    #next-value, #next-unit, #tracks-audio, #tracks-subs {
+    .toggle.on { background: var(--yellow); color: var(--black); }
+    .toggle:disabled { opacity: .35; cursor: default; }
+    .toggle:focus-visible { outline: 1px solid var(--yellow); outline-offset: 2px; }
+    .field {
       min-width: 0;
       border: 0;
       border-radius: 0;
@@ -118,15 +119,24 @@
     }
     #next-value { flex: 1; -moz-appearance: textfield; }
     #next-value::-webkit-inner-spin-button { opacity: 1; }
-    #next-unit { flex: 1.4; cursor: pointer; padding: 0 8px; }
+    #next-unit { flex: 1.4; display: flex; align-items: center; justify-content: center; font-size: 15px; }
     #tracks-audio, #tracks-subs { flex: 1; cursor: pointer; padding: 0 4px; font-size: 14px; }
-    #next-value:focus, #next-unit:focus, #tracks-audio:focus, #tracks-subs:focus {
+    .time { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .time span { font-size: 13px; opacity: .7; }
+    .time input {
+      width: 58px; border: 0; background: none; color: inherit; outline: none;
+      font: 400 17px/1 Roboto, system-ui, sans-serif; text-align: left;
+    }
+    .time:focus-within { box-shadow: 0 0 0 2px var(--black), 0 0 0 3px var(--yellow); }
+    .next-row.disabled .time { opacity: .35; }
+    .field:disabled { cursor: default; }
+    input.field:focus, select.field:focus {
       box-shadow: 0 0 0 2px var(--black), 0 0 0 3px var(--yellow);
     }
     .next-row.disabled select,
     .next-row.disabled input { opacity: .35; }
     .hint {
-      margin-top: 8px;
+      margin-top: 6px;
       font: 12px system-ui, sans-serif;
       text-align: center;
       opacity: .8;
@@ -134,7 +144,7 @@
 
     #clear-history {
       display: block;
-      margin: 14px auto 0;
+      margin: 12px auto 0;
       background: none;
       border: 0;
       color: var(--yellow);
@@ -147,8 +157,7 @@
     #clear-history[hidden] { display: none; }
 
     #status {
-      min-height: 16px;
-      margin-top: 8px;
+      margin-top: 6px;
       font: 12px system-ui, sans-serif;
       text-align: center;
       opacity: .8;
@@ -169,24 +178,20 @@
   <h2>Next Episode</h2>
 
   <div class="next-row" id="next-row">
-    <button id="autonext" title="Play the next episode automatically">ON</button>
-    <input id="next-value" type="number" min="0" step="1" aria-label="How much before the end">
-    <select id="next-unit" aria-label="Unit">
-      <option value="s">seconds</option>
-      <option value="%">% of video</option>
-    </select>
+    <button id="autonext" class="toggle" title="Play the next episode automatically">ON</button>
+    <input id="next-value" class="field" type="number" min="0" step="1" aria-label="Seconds before the end">
+    <span id="next-unit" class="field">sec before end</span>
   </div>
-  <div class="hint">Countdown starts this long before the end</div>
 
   <h2>Language</h2>
 
   <div class="next-row" id="tracks-row">
-    <button id="tracks" title="Set audio and subtitles automatically">OFF</button>
-    <select id="tracks-audio" aria-label="Audio">
+    <button id="tracks" class="toggle" title="Set audio and subtitles automatically">OFF</button>
+    <select id="tracks-audio" class="field" aria-label="Audio">
       <option value="ita">Audio: Italian</option>
       <option value="eng">Audio: English</option>
     </select>
-    <select id="tracks-subs" aria-label="Subtitles">
+    <select id="tracks-subs" class="field" aria-label="Subtitles">
       <option value="off">Subs: Off</option>
       <option value="forced-ita">Subs: Forced IT</option>
       <option value="ita">Subs: Italian</option>
@@ -194,7 +199,19 @@
       <option value="eng-cc">Subs: English CC</option>
     </select>
   </div>
-  <div class="hint">Set on every episode; you can still change them in the player</div>
+
+  <h2>Skip Intro</h2>
+
+  <div class="next-row disabled" id="intro-row">
+    <button id="intro" class="toggle" title="Skip the intro automatically">OFF</button>
+    <label class="field time"><span>from</span>
+      <input id="intro-start" type="text" inputmode="numeric" spellcheck="false"
+             placeholder="0:45" aria-label="Intro start (minutes:seconds)"></label>
+    <label class="field time"><span>to</span>
+      <input id="intro-end" type="text" inputmode="numeric" spellcheck="false"
+             placeholder="1:30" aria-label="Intro end (minutes:seconds)"></label>
+  </div>
+  <div class="hint">Applies to every episode: update it when you switch series</div>
 
   <button id="clear-history" hidden>Clear "Continue watching" history</button>
 

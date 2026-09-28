@@ -87,6 +87,14 @@ chrome.webNavigation.onCommitted.addListener(async ({ tabId, frameId, url }) => 
 });
 
 chrome.runtime.onInstalled.addListener(syncRegistration);
+
+// La soglia dell'episodio successivo ora è solo in secondi: una vecchia soglia in percentuale
+// (es. 5%) diventerebbe 5 secondi, quindi si torna al valore predefinito
+chrome.runtime.onInstalled.addListener(async () => {
+  const { autoNextUnit } = await chrome.storage.sync.get('autoNextUnit');
+  if (autoNextUnit === '%') await chrome.storage.sync.remove('autoNextValue');
+  if (autoNextUnit) await chrome.storage.sync.remove('autoNextUnit');
+});
 chrome.runtime.onStartup.addListener(syncRegistration);
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -397,4 +405,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     .then(([res]) => sendResponse(res?.result || { ok: false, error: 'no result' }))
     .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));
   return true; // risposta asincrona
+});
+
+// ======== Salta la sigla (vedi autonext.js e popup.js) ========
+
+// Gli orari della sigla erano salvati per serie: si tiene l'ultimo impostato come valore unico
+chrome.runtime.onInstalled.addListener(async () => {
+  const { intros } = await chrome.storage.sync.get('intros');
+  if (!intros) return;
+  const last = Object.values(intros).reverse().find(i => i.end > i.start);
+  if (last) await chrome.storage.sync.set({ introSkip: !!last.on, introStart: last.start, introEnd: last.end });
+  await chrome.storage.sync.remove('intros');
 });

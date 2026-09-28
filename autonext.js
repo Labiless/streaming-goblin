@@ -9,8 +9,9 @@
   window.__goblinAutoNextReady = true;
 
   const DEFAULTS = {
-    autoNext: true, autoNextValue: 30, autoNextUnit: 's',
-    tracks: false, tracksAudio: 'ita', tracksSubs: 'forced-ita'
+    autoNext: true, autoNextValue: 30,
+    tracks: false, tracksAudio: 'ita', tracksSubs: 'forced-ita',
+    introSkip: false, introStart: null, introEnd: null
   };
   const COUNTDOWN = 5;          // secondi di preavviso prima di cambiare episodio
   const MIN_DURATION = 120;     // ignora video troppo corti (trailer, intro…)
@@ -47,10 +48,8 @@
   let timer = null;
   let video = null;
 
-  const threshold = duration => {
-    const v = Math.max(0, Number(settings.autoNextValue) || 0);
-    return settings.autoNextUnit === '%' ? duration * v / 100 : v;
-  };
+  // Secondi prima della fine in cui parte il conto alla rovescia
+  const threshold = () => Math.max(0, Number(settings.autoNextValue) || 0);
 
   function goNext() {
     const btn = nextButton();
@@ -91,7 +90,7 @@
     const d = video.duration;
     if (!settings.autoNext || triggered || !isFinite(d) || d < MIN_DURATION || !nextButton()) return;
     const left = d - video.currentTime;
-    if (left > threshold(d)) {
+    if (left > threshold()) {
       // Sei tornato indietro prima della soglia: si riarma
       dismissed = false;
       if (timer) cancel();
@@ -494,6 +493,32 @@
       : null;
     chrome.runtime.sendMessage({ type: 'jw-tracks', prefs }).catch(() => {});
   }
+
+  // ======== Salta la sigla (orari impostati dal popup, validi per ogni episodio) ========
+
+  let lastTime = null;
+
+  document.addEventListener('timeupdate', e => {
+    if (!(e.target instanceof HTMLVideoElement)) return;
+    const v = e.target;
+    const cur = v.currentTime;
+    let prev = lastTime;
+    lastTime = cur;
+    // Salto all'indietro: nuovo episodio (cambio al volo) o spostamento con la barra
+    if (prev !== null && cur < prev - 5) prev = cur < 3 ? null : cur;
+    const { introSkip, introStart: start, introEnd: end } = settings;
+    if (!introSkip || !(end > start)) return;
+
+    // Solo quando la riproduzione arriva alla sigla, non se ci torni tu con la barra
+    const entering = prev === null
+      ? cur - start < 3
+      : prev <= start && cur - prev < 3;
+    if (entering && cur >= start && cur < end - 1) {
+      v.currentTime = end;
+      lastTime = end;
+      overlay.flash('Intro skipped', 2000);
+    }
+  }, true);
 
   (async () => {
     if (scwsIdOf()) {

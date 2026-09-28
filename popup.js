@@ -3,10 +3,12 @@ const DEFAULTS = {
   domain: 'streamingcommunityz.photos',
   autoNext: true,
   autoNextValue: 30,
-  autoNextUnit: 's',
   tracks: false,
   tracksAudio: 'ita',
-  tracksSubs: 'forced-ita'
+  tracksSubs: 'forced-ita',
+  introSkip: false,
+  introStart: null,
+  introEnd: null
 };
 
 const domainInput = document.getElementById('domain');
@@ -14,7 +16,6 @@ const toggleBtn = document.getElementById('toggle');
 const statusEl = document.getElementById('status');
 const autoNextBtn = document.getElementById('autonext');
 const nextValueInput = document.getElementById('next-value');
-const nextUnitSelect = document.getElementById('next-unit');
 const nextRow = document.getElementById('next-row');
 
 let enabled = true;
@@ -84,9 +85,8 @@ autoNextBtn.addEventListener('click', () => {
 
 function saveNextValue() {
   clearTimeout(nextValueTimer);
-  const max = nextUnitSelect.value === '%' ? 50 : 600;
-  const value = Math.min(max, Math.max(0, Math.round(Number(nextValueInput.value) || 0)));
-  chrome.storage.sync.set({ autoNextValue: value, autoNextUnit: nextUnitSelect.value });
+  const value = Math.min(600, Math.max(0, Math.round(Number(nextValueInput.value) || 0)));
+  chrome.storage.sync.set({ autoNextValue: value });
   return value;
 }
 nextValueInput.addEventListener('input', () => {
@@ -94,7 +94,6 @@ nextValueInput.addEventListener('input', () => {
   nextValueTimer = setTimeout(saveNextValue, 400);
 });
 nextValueInput.addEventListener('change', () => { nextValueInput.value = saveNextValue(); });
-nextUnitSelect.addEventListener('change', () => { nextValueInput.value = saveNextValue(); });
 
 // ---- Cronologia di "Continue watching" (salvata solo in questo browser) ----
 const clearHistoryBtn = document.getElementById('clear-history');
@@ -129,17 +128,73 @@ tracksBtn.addEventListener('click', () => {
 tracksAudio.addEventListener('change', () => chrome.storage.sync.set({ tracksAudio: tracksAudio.value }));
 tracksSubs.addEventListener('change', () => chrome.storage.sync.set({ tracksSubs: tracksSubs.value }));
 
+// ---- Salta la sigla: orari unici, validi per ogni episodio finché non li cambi ----
+const introBtn = document.getElementById('intro');
+const introStart = document.getElementById('intro-start');
+const introEnd = document.getElementById('intro-end');
+const introRow = document.getElementById('intro-row');
+let introSkip = false;
+let introTimer;
+
+// "1:30" → 90, "90" → 90, "1:02:03" → 3723; vuoto o non valido → null
+function parseTime(text) {
+  const parts = text.trim().split(':');
+  if (!parts[0] || parts.length > 3 || parts.some(p => !/^\d+$/.test(p))) return null;
+  return parts.reduce((sec, p) => sec * 60 + Number(p), 0);
+}
+const formatTime = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+
+function renderIntro() {
+  introBtn.textContent = introSkip ? 'ON' : 'OFF';
+  introBtn.classList.toggle('on', introSkip);
+  introRow.classList.toggle('disabled', !introSkip);
+}
+
+introBtn.addEventListener('click', () => {
+  introSkip = !introSkip;
+  renderIntro();
+  chrome.storage.sync.set({ introSkip });
+});
+
+// Letti al volo da autonext.js: valgono subito, anche per l'episodio in corso
+function saveIntroTimes() {
+  clearTimeout(introTimer);
+  const start = parseTime(introStart.value);
+  const end = parseTime(introEnd.value);
+  if (start === null || end === null) return;
+  if (end <= start) {
+    render('Intro: the end must come after the start (e.g. 0:45 → 1:30)');
+    return;
+  }
+  render('');
+  chrome.storage.sync.set({ introStart: start, introEnd: end });
+}
+for (const input of [introStart, introEnd]) {
+  input.addEventListener('input', () => {
+    clearTimeout(introTimer);
+    introTimer = setTimeout(saveIntroTimes, 600);
+  });
+  input.addEventListener('change', () => {
+    saveIntroTimes();
+    const t = parseTime(input.value);
+    if (t !== null) input.value = formatTime(t);
+  });
+}
+
 chrome.storage.sync.get(DEFAULTS).then(s => {
   enabled = s.enabled;
   domainInput.value = s.domain;
   savedDomain = s.domain;
   autoNext = s.autoNext;
   nextValueInput.value = s.autoNextValue;
-  nextUnitSelect.value = s.autoNextUnit;
   tracks = s.tracks;
   tracksAudio.value = s.tracksAudio;
   tracksSubs.value = s.tracksSubs;
+  introSkip = s.introSkip;
+  if (s.introStart != null) introStart.value = formatTime(s.introStart);
+  if (s.introEnd != null) introEnd.value = formatTime(s.introEnd);
   render();
   renderAutoNext();
   renderTracks();
+  renderIntro();
 });
