@@ -74,7 +74,10 @@
   }
 
   function renderCountdown() {
-    overlay.show(`Next episode in ${remaining}`, true);
+    overlay.show(`Next episode in ${remaining}`, [
+      { label: 'Play now', primary: true, onClick: goNext },
+      { label: 'Cancel', onClick: () => { dismissed = true; cancel(); } }
+    ]);
   }
 
   // Gli eventi dei media non fanno bubbling, ma in fase di capture arrivano al document
@@ -143,7 +146,7 @@
       const reason = err?.message || String(err);
       log('seamless next episode failed, reloading the page -', reason);
       // Il motivo resta visibile qualche secondo: la console dentro il player non è comoda da usare
-      overlay.show(`Reloading page (${reason.slice(0, 70)})`, false);
+      overlay.show(`Reloading page (${reason.slice(0, 70)})`);
       await sleep(3000);
       reloadToNext(wasFullscreen);
     } finally {
@@ -300,7 +303,7 @@
     const text = needsSound && needsFullscreen ? 'Click for sound & fullscreen'
       : needsSound ? 'Click to unmute'
       : 'Click for fullscreen';
-    overlay.show(text, false);
+    overlay.show(text);
 
     const onGesture = e => {
       if (!e.isTrusted || e.key === 'Escape') return;
@@ -326,7 +329,7 @@
 
   // ======== Riquadro giallo (conto alla rovescia / avvisi) ========
   const overlay = (() => {
-    let host, box, label, fontReady, flashTimer;
+    let host, box, label, buttonsEl, buttonsKey = null, fontReady, flashTimer;
 
     function loadFont() {
       fontReady ??= fetch(chrome.runtime.getURL('fonts/RubikIso-latin.woff2'))
@@ -355,29 +358,39 @@
           }
           img { height: 44px; width: auto; filter: brightness(0); }
           .label { white-space: nowrap; margin-right: 4px; }
+          .buttons { display: flex; gap: 12px; }
+          .buttons:empty { display: none; }
           button {
             font: 600 13px/1 system-ui, sans-serif; cursor: pointer;
             padding: 8px 12px; border: 1px solid #000;
+            background: transparent; color: #000;
           }
-          .now { background: #000; color: #ffea4f; }
-          .cancel { background: transparent; color: #000; }
+          button.primary { background: #000; color: #ffea4f; }
           button:hover { filter: brightness(1.25); }
-          .box:not(.actions) button { display: none; }
         </style>
         <div class="box">
           <img alt="">
           <span class="label"></span>
-          <button class="now">Play now</button>
-          <button class="cancel">Cancel</button>
+          <div class="buttons"></div>
         </div>`;
       root.querySelector('img').src = chrome.runtime.getURL('goblin.png');
       box = root.querySelector('.box');
       label = root.querySelector('.label');
-      root.querySelector('.now').addEventListener('click', goNext);
-      root.querySelector('.cancel').addEventListener('click', () => {
-        dismissed = true;
-        cancel();
-      });
+      buttonsEl = root.querySelector('.buttons');
+    }
+
+    // Ricrea i bottoni solo se cambiano (il conto alla rovescia aggiorna il testo ogni secondo)
+    function setButtons(buttons) {
+      const key = buttons.map(b => b.label).join('|');
+      if (key === buttonsKey) return;
+      buttonsKey = key;
+      buttonsEl.replaceChildren(...buttons.map(b => {
+        const el = document.createElement('button');
+        el.textContent = b.label;
+        if (b.primary) el.className = 'primary';
+        el.addEventListener('click', b.onClick);
+        return el;
+      }));
     }
 
     // In schermo intero è visibile solo l'elemento fullscreen: il riquadro va messo lì dentro
@@ -391,14 +404,15 @@
     document.addEventListener('fullscreenchange', () => { if (host?.isConnected) mount(); });
 
     return {
-      // actions: mostra i bottoni "Play now" / "Cancel"; senza, il riquadro lascia
-      // passare i click al player (serve per "Click to unmute")
-      show(text, actions) {
+      // buttons: [{ label, primary, onClick }]. Senza bottoni il riquadro lascia passare
+      // i click al player (serve per "Click to unmute")
+      show(text, buttons = []) {
         loadFont();
         if (!host) build();
+        clearTimeout(flashTimer);
         label.textContent = text;
-        box.classList.toggle('actions', actions);
-        host.style.pointerEvents = actions ? 'auto' : 'none';
+        setButtons(buttons);
+        host.style.pointerEvents = buttons.length ? 'auto' : 'none';
         mount();
       },
       hide() {
@@ -406,14 +420,61 @@
         host?.remove();
       },
       // Messaggio che sparisce da solo, se nel frattempo non è stato sostituito
-      flash(text, ms) {
-        this.show(text, false);
-        clearTimeout(flashTimer);
+      flash(text, ms, buttons = []) {
+        this.show(text, buttons);
         flashTimer = setTimeout(() => { if (label.textContent === text) this.hide(); }, ms);
       }
     };
   })();
 
-  const autoplayFlag = takeAutoplayFlag();
-  if (autoplayFlag) autoplay(autoplayFlag);
+  // ======== Cronologia per "Continue watching" (vedi background.js e continue.js) ========
+
+  // L'id del video nel player: dopo un cambio al volo l'indirizzo del frame viene aggiornato
+  const scwsIdOf = () => location.pathname.match(/\/embed\/(\d+)/)?.[1];
+  let lastReport = 0;
+
+  function reportProgress(force) {
+    const v = getVideo();
+    const scwsId = scwsIdOf();
+    if (!v || !scwsId || !isFinite(v.duration) || v.duration < MIN_DURATION || v.currentTime < 10) return;
+    const now = Date.now();
+    if (!force && now - lastReport < 10000) return;
+    lastReport = now;
+    chrome.runtime.sendMessage({
+      type: 'watch-progress',
+      scwsId,
+      position: Math.floor(v.currentTime),
+      duration: Math.floor(v.duration)
+    }).catch(() => {});
+  }
+  document.addEventListener('timeupdate', () => reportProgress(false), true);
+  document.addEventListener('pause', () => reportProgress(true), true);
+  window.addEventListener('pagehide', () => reportProgress(true));
+
+  // Se questo video era a metà, la prima volta che parte riprende da dove eri rimasto
+  async function setupResume() {
+    const scwsId = scwsIdOf();
+    if (!scwsId) return;
+    const { history = [] } = await chrome.storage.local.get({ history: [] });
+    const saved = history.find(e => e.scwsId === scwsId);
+    if (!saved || saved.position < 30 || saved.duration - saved.position < 60) return;
+
+    document.addEventListener('playing', function onPlaying(e) {
+      if (!(e.target instanceof HTMLVideoElement)) return;
+      document.removeEventListener('playing', onPlaying, true);
+      const v = e.target;
+      if (v.currentTime > 5) return; // un punto di partenza l'ha già scelto il sito
+      v.currentTime = saved.position;
+    }, true);
+  }
+
+  (async () => {
+    setupResume();
+    const autoplayFlag = takeAutoplayFlag();
+    if (autoplayFlag) return autoplay(autoplayFlag);
+    // Hai premuto "Resume" nella homepage: il video parte da solo
+    if (scwsIdOf() && await chrome.runtime.sendMessage({ type: 'take-resume-intent' }).catch(() => false)) {
+      autoplay({ fullscreen: false });
+    }
+  })();
 })();

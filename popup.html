@@ -129,6 +129,20 @@
       opacity: .8;
     }
 
+    #clear-history {
+      display: block;
+      margin: 18px auto 0;
+      background: none;
+      border: 0;
+      color: var(--yellow);
+      font: 12px system-ui, sans-serif;
+      text-decoration: underline;
+      opacity: .7;
+      cursor: pointer;
+    }
+    #clear-history:hover { opacity: 1; }
+    #clear-history[hidden] { display: none; }
+
     #status {
       min-height: 16px;
       margin-top: 8px;
@@ -160,6 +174,8 @@
     </select>
   </div>
   <div class="hint">How long before the end to start a 5s countdown to the next episode</div>
+
+  <button id="clear-history" hidden>Clear "Continue watching" history</button>
 
   <div id="status"></div>
 

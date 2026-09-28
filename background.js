@@ -49,10 +49,10 @@ async function syncRegistration() {
     allFrames: true,
     persistAcrossSessions: true
   }, {
-    // Toast e autoplay dell'episodio successivo girano nel mondo isolato dell'estensione,
-    // separato dagli script del sito, da dove possono leggere le impostazioni
+    // Toast, episodio successivo e "Continue watching" girano nel mondo isolato
+    // dell'estensione, separato dagli script del sito, da dove possono leggere le impostazioni
     id: TOAST_ID,
-    js: ['toast.js', 'autonext.js'],
+    js: ['toast.js', 'autonext.js', 'continue.js'],
     matches: matchPatterns(domain),
     runAt: 'document_start',
     allFrames: true,
@@ -71,7 +71,7 @@ async function injectIntoOpenTabs(domain) {
 function injectInto(target, extra = {}) {
   return Promise.all([
     chrome.scripting.executeScript({ target, files: ['blocker.js'], world: 'MAIN', ...extra }),
-    chrome.scripting.executeScript({ target, files: ['toast.js', 'autonext.js'], ...extra })
+    chrome.scripting.executeScript({ target, files: ['toast.js', 'autonext.js', 'continue.js'], ...extra })
   ]).catch(() => {});
 }
 
@@ -190,5 +190,125 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .then(([res]) => sendResponse(res?.result || { ok: false, error: 'no result' }))
       .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));
     return true;
+  }
+});
+
+// ======== "Continue watching": cronologia di visione (vedi autonext.js e continue.js) ========
+
+const HISTORY_KEY = 'history';
+const HISTORY_MAX = 10;          // una voce per serie, la più recente per prima
+const FINISHED_RATIO = 0.95;     // oltre questa percentuale l'episodio conta come visto
+
+// Dati di episodio e serie già letti dal sito, per non riscaricarli a ogni aggiornamento
+const metaCache = new Map();
+// Tab in cui hai premuto "Resume" nella homepage: il player deve partire da solo
+const resumeIntents = new Map();
+
+async function getHistory() {
+  return (await chrome.storage.local.get({ [HISTORY_KEY]: [] }))[HISTORY_KEY];
+}
+
+function setHistory(list) {
+  return chrome.storage.local.set({ [HISTORY_KEY]: list.slice(0, HISTORY_MAX) });
+}
+
+// Immagine dell'episodio (dalla scheda della sua stagione), altrimenti quella della serie.
+// Si salva solo il nome del file: il dominio del sito (e del suo CDN) cambia spesso.
+async function findImage(watchBase, title, season, episodeId) {
+  const titlesBase = watchBase.replace(/\/watch$/, '/titles');
+  const url = `${titlesBase}/${title.id}-${title.slug}${season > 1 ? `/season-${season}` : ''}`;
+  const pick = (images, types) =>
+    types.map(t => images?.find(i => i.type === t)).find(Boolean)?.filename;
+  try {
+    const props = await fetchPageProps(url);
+    const ep = props.loadedSeason?.episodes?.find(e => e.id === episodeId);
+    return pick(ep?.images, ['cover']) || pick(props.title?.images, ['background', 'cover', 'poster']) || null;
+  } catch {
+    return null;
+  }
+}
+
+// Legge dalla pagina dell'episodio (o del film) tutto quello che serve alla sezione.
+// scwsId: l'id del video nel player, per essere sicuri che la pagina parli dello stesso video.
+async function resolveMeta(pageUrl, scwsId) {
+  const url = new URL(pageUrl);
+  const m = url.pathname.match(/^(.*\/watch)\/(\d+)\/?$/);
+  if (!m) throw new Error('not a watch page');
+  const props = await fetchPageProps(url.href);
+  const { title, episode: ep } = props;
+  if (!title) throw new Error('no title data');
+  const playing = ep?.scws_id ?? title.scws_id;
+  if (scwsId && playing && String(playing) !== String(scwsId)) throw new Error('video not recognised');
+
+  return {
+    titleId: title.id,
+    titleName: title.name,
+    type: title.type,
+    episodeId: ep?.id ?? null,
+    season: ep?.season?.number ?? null,
+    number: ep?.number ?? null,
+    episodeName: ep?.name ?? '',
+    scwsId: String(playing ?? scwsId),
+    // Solo il percorso, per lo stesso motivo dell'immagine
+    watchPath: `${m[1]}/${m[2]}` + (ep ? `?e=${ep.id}` : ''),
+    nextEpisodeId: props.nextEpisode?.id ?? null,
+    durationMin: ep?.duration ?? title.runtime ?? null,
+    image: await findImage(url.origin + m[1], title, ep?.season?.number, ep?.id)
+  };
+}
+
+function getMeta(key, pageUrl, scwsId) {
+  if (!metaCache.has(key)) {
+    const p = resolveMeta(pageUrl, scwsId);
+    p.catch(() => metaCache.delete(key));
+    metaCache.set(key, p);
+  }
+  return metaCache.get(key);
+}
+
+async function saveProgress(tabUrl, { scwsId, position, duration }) {
+  let list = await getHistory();
+  // I dati del video sono già nella cronologia se lo stavi guardando (anche dopo un riavvio)
+  const meta = list.find(e => e.scwsId === scwsId) || await getMeta(scwsId, tabUrl, scwsId);
+  let entry = { ...meta, position, duration, updatedAt: Date.now() };
+
+  if (position / duration >= FINISHED_RATIO) {
+    // Episodio finito: la sezione propone il successivo da capo, come Netflix.
+    // Film o ultimo episodio della serie: non c'è altro da continuare.
+    if (!meta.nextEpisodeId) {
+      return setHistory(list.filter(e => e.titleId !== meta.titleId));
+    }
+    const nextUrl = new URL(`${meta.watchPath.replace(/\?.*$/, '')}?e=${meta.nextEpisodeId}`, tabUrl).href;
+    const next = await getMeta(`e${meta.nextEpisodeId}`, nextUrl, null);
+    entry = { ...next, position: 0, duration: (next.durationMin || 0) * 60, updatedAt: Date.now() };
+  }
+
+  await setHistory([entry, ...list.filter(e => e.titleId !== entry.titleId)]);
+}
+
+// Gli aggiornamenti arrivano ogni ~10 s: si mettono in fila per non sovrascriversi a vicenda
+let historyQueue = Promise.resolve();
+function queueHistory(task) {
+  historyQueue = historyQueue.then(task).catch(() => {});
+  return historyQueue;
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!sender.tab) return;
+
+  if (msg?.type === 'watch-progress') {
+    queueHistory(() => saveProgress(sender.tab.url, msg));
+    return;
+  }
+
+  if (msg?.type === 'resume-intent') {
+    resumeIntents.set(sender.tab.id, Date.now());
+    return;
+  }
+
+  if (msg?.type === 'take-resume-intent') {
+    const t = resumeIntents.get(sender.tab.id);
+    resumeIntents.delete(sender.tab.id);
+    sendResponse(!!t && Date.now() - t < 60000);
   }
 });

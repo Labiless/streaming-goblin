@@ -54,6 +54,21 @@ If that fails (for example because the site changed something), the box shows **
 - **Sound**: if Chrome refuses to start the video with sound, it starts muted and a box says **Click to unmute**. You can avoid this with the optional policy below.
 - **Fullscreen**: if you were watching in fullscreen, the box says **Click for fullscreen** (or **Click for sound & fullscreen**). One click or key press puts the new episode back in fullscreen, without pausing it. This click can't be avoided after a page reload. Chrome does have a policy for fullscreen without a click (`AutomaticFullscreenAllowedForUrls`), but in our tests on a personal Mac, Chrome accepted the policy and still refused fullscreen without a click.
 
+### Continue watching
+
+The goblin remembers what you watch: series, episode and the minute you stopped at. The data never leaves the browser (it's kept only in the extension's local storage, no account or server) and covers the last 10 series.
+
+A few seconds after you open the site's **homepage**, a yellow-and-black **Continue watching** box appears at the bottom of the page with the last thing you watched:
+
+- the episode's image with a progress bar, the series name, season and episode, and the time left;
+- **Resume**: opens the episode and starts it on its own, **from the minute you stopped at**. The same happens whenever you open that episode and press play: it picks up where you left off;
+- **Remove**: forgets that series and shows the previous one, if any;
+- **✕**: hides the box until the next time you open the homepage.
+
+If you finished an episode, the box offers the **next one** from the start. After the last episode of a series, or after a movie, the entry disappears. The box only appears on the homepage, and it's added by the extension on top of the page, so it doesn't depend on the site's layout.
+
+To wipe the history, use **Clear "Continue watching" history** in the popup.
+
 ### Autoplay with sound (optional)
 
 **You normally don't need this.** Chrome allows sound on a page you've already clicked or pressed a key on. You start the first episode yourself by clicking play in the player, and the following ones are loaded in that same player, so they already get sound.
@@ -159,10 +174,11 @@ Don't use it on regular websites: it would also break legitimate popups like "Si
 | File | Purpose |
 | --- | --- |
 | `manifest.json` | Extension manifest (Manifest V3) |
-| `background.js` | Registers and injects the scripts on the chosen domain and its iframes; looks up the next episode for the seamless switch |
+| `background.js` | Registers and injects the scripts on the chosen domain and its iframes; looks up the next episode for the seamless switch; keeps the watch history |
 | `blocker.js` | The popup blocker itself, running in the page context |
 | `toast.js` | Shows the "Popup blocked" toast |
-| `autonext.js` | Next-episode countdown, seamless episode switch and autoplay, inside the player |
+| `autonext.js` | Next-episode countdown, seamless episode switch, autoplay, watch progress and resume, inside the player |
+| `continue.js` | The "Continue watching" box on the homepage |
 | `popup.html` / `popup.js` | The toolbar popup |
 | `fonts/` | Rubik Iso font, bundled locally |
 | `icons/`, `goblin.png` | Icons and artwork |
@@ -170,7 +186,7 @@ Don't use it on regular websites: it would also break legitimate popups like "Si
 ## Permissions
 
 - **scripting**, **webNavigation**, **tabs**: inject the blocker into the chosen site and its player iframe.
-- **storage**: remember the domain, the on/off state and the next-episode settings.
+- **storage**: remember the domain, the on/off state, the next-episode settings and the watch history for **Continue watching** (stored locally, in this browser only).
 - **Access to all sites**: needed because the domain is configurable and the player is hosted elsewhere. The blocker only runs on tabs of the domain you set.
 
 No data is collected or sent anywhere.

@@ -93,6 +93,18 @@ nextValueInput.addEventListener('input', () => {
 nextValueInput.addEventListener('change', () => { nextValueInput.value = saveNextValue(); });
 nextUnitSelect.addEventListener('change', () => { nextValueInput.value = saveNextValue(); });
 
+// ---- Cronologia di "Continue watching" (salvata solo in questo browser) ----
+const clearHistoryBtn = document.getElementById('clear-history');
+
+chrome.storage.local.get({ history: [] }).then(({ history }) => {
+  clearHistoryBtn.hidden = !history.length;
+});
+clearHistoryBtn.addEventListener('click', async () => {
+  await chrome.storage.local.remove('history');
+  clearHistoryBtn.hidden = true;
+  render('History cleared');
+});
+
 chrome.storage.sync.get(DEFAULTS).then(s => {
   enabled = s.enabled;
   domainInput.value = s.domain;
