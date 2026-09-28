@@ -87,6 +87,48 @@
     }
     #domain:focus { box-shadow: 0 0 0 2px var(--black), 0 0 0 3px var(--yellow); }
 
+    .next-row {
+      display: flex;
+      gap: 8px;
+      height: 44px;
+    }
+    #autonext {
+      width: 96px;
+      flex: none;
+      background: var(--black);
+      color: var(--yellow);
+      border: 1px solid var(--yellow);
+      font-family: inherit;
+      font-size: 22px;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    #autonext.on { background: var(--yellow); color: var(--black); }
+    #autonext:focus-visible { outline: 1px solid var(--yellow); outline-offset: 2px; }
+    #next-value, #next-unit {
+      min-width: 0;
+      border: 0;
+      border-radius: 0;
+      background: var(--yellow);
+      color: var(--black);
+      font: 400 17px/1 Roboto, system-ui, sans-serif;
+      text-align: center;
+      outline: none;
+      transition: opacity .15s;
+    }
+    #next-value { flex: 1; -moz-appearance: textfield; }
+    #next-value::-webkit-inner-spin-button { opacity: 1; }
+    #next-unit { flex: 1.4; cursor: pointer; padding: 0 8px; }
+    #next-value:focus, #next-unit:focus { box-shadow: 0 0 0 2px var(--black), 0 0 0 3px var(--yellow); }
+    .next-row.disabled #next-value,
+    .next-row.disabled #next-unit { opacity: .35; }
+    .hint {
+      margin-top: 8px;
+      font: 12px system-ui, sans-serif;
+      text-align: center;
+      opacity: .8;
+    }
+
     #status {
       min-height: 16px;
       margin-top: 8px;
@@ -106,6 +148,18 @@
   <h2>Update Domain</h2>
 
   <input id="domain" type="text" spellcheck="false" placeholder="streamingcommunityz.photos">
+
+  <h2>Next Episode</h2>
+
+  <div class="next-row" id="next-row">
+    <button id="autonext" title="Play the next episode automatically">ON</button>
+    <input id="next-value" type="number" min="0" step="1" aria-label="How much before the end">
+    <select id="next-unit" aria-label="Unit">
+      <option value="s">seconds</option>
+      <option value="%">% of video</option>
+    </select>
+  </div>
+  <div class="hint">How long before the end to start a 5s countdown to the next episode</div>
 
   <div id="status"></div>
 

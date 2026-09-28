@@ -126,12 +126,42 @@
       } catch {}
     }
 
+    // 6. Permessi di autoplay e schermo intero agli iframe (il player sta su un altro
+    //    dominio e senza allow="autoplay; fullscreen" Chrome non lo lascia partire da solo
+    //    con l'audio né andare a schermo intero senza un click).
+    //    I permessi vengono letti quando l'iframe inizia a caricare, quindi vanno messi prima.
+    const seenFrames = new WeakSet();
+    const allowAutoplay = f => {
+      seenFrames.add(f);
+      const allow = f.getAttribute('allow') || '';
+      const missing = ['autoplay', 'fullscreen'].filter(p => !new RegExp(`\\b${p}\\b`).test(allow));
+      if (!missing.length) return false;
+      f.setAttribute('allow', [allow, ...missing].filter(Boolean).join('; '));
+      return true;
+    };
+    // Iframe creati da codice: il permesso si mette prima che vengano inseriti
+    const prepareInserted = nodes => {
+      for (const n of nodes) {
+        if (n?.localName === 'iframe') allowAutoplay(n);
+        else if (n?.querySelectorAll) for (const f of n.querySelectorAll('iframe')) allowAutoplay(f);
+      }
+    };
+
     // Protegge gli iframe appena vengono inseriti nel DOM, prima che il sito
     // possa raggiungerli tramite window.frames[i]
     const frames = [doc.getElementsByTagName('iframe'), doc.getElementsByTagName('frame')];
     const scan = () => {
       for (const list of frames) {
-        for (const f of list) { try { void f.contentWindow; } catch {} }
+        for (const f of list) {
+          // Iframe scritti nell'HTML della pagina: stavano già caricando senza permesso,
+          // quindi si ricaricano subito col permesso (solo se la pagina sta ancora caricando,
+          // per non far ripartire un player già in uso)
+          if (f.localName === 'iframe' && !seenFrames.has(f) && allowAutoplay(f) &&
+              doc.readyState !== 'complete' && f.getAttribute('src')) {
+            f.setAttribute('src', f.getAttribute('src'));
+          }
+          try { void f.contentWindow; } catch {}
+        }
       }
     };
 
@@ -140,6 +170,7 @@
         const orig = proto?.[n];
         if (typeof orig !== 'function') continue;
         lock(proto, n, function (...args) {
+          try { prepareInserted(args); } catch {}
           try { return orig.apply(this, args); } finally { scan(); }
         });
       }

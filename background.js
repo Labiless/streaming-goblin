@@ -49,9 +49,10 @@ async function syncRegistration() {
     allFrames: true,
     persistAcrossSessions: true
   }, {
-    // Il toast gira nel mondo isolato dell'estensione, separato dagli script del sito
+    // Toast e autoplay dell'episodio successivo girano nel mondo isolato dell'estensione,
+    // separato dagli script del sito, da dove possono leggere le impostazioni
     id: TOAST_ID,
-    js: ['toast.js'],
+    js: ['toast.js', 'autonext.js'],
     matches: matchPatterns(domain),
     runAt: 'document_start',
     allFrames: true,
@@ -70,7 +71,7 @@ async function injectIntoOpenTabs(domain) {
 function injectInto(target, extra = {}) {
   return Promise.all([
     chrome.scripting.executeScript({ target, files: ['blocker.js'], world: 'MAIN', ...extra }),
-    chrome.scripting.executeScript({ target, files: ['toast.js'], ...extra })
+    chrome.scripting.executeScript({ target, files: ['toast.js', 'autonext.js'], ...extra })
   ]).catch(() => {});
 }
 

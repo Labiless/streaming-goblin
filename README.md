@@ -12,7 +12,7 @@
 
 ## The problem
 
-On some streaming sites, the first few clicks on anything (the video, the player, the fullscreen button…) don't do what you asked: instead they open an ad in a new tab and switch you to it. Only after 3–4 attempts does the click actually work.
+On some streaming sites, the first few clicks on anything (the video, the player, the fullscreen button…) don't do what you asked: instead they open an ad in a new tab and switch you to it. Only after 3–4 attempts does the click actually work. **THIS IS EXTREMELY ANNOING**
 
 Streaming Goblin blocks those attempts, so every click does what it should on the first try.
 
@@ -26,7 +26,7 @@ The extension isn't on the Chrome Web Store, so you load it manually:
 4. Click **Load unpacked** and select the project folder (the one containing `manifest.json`).
 5. Optional: pin the goblin to the toolbar via the puzzle-piece icon.
 
-It works in any Chromium-based browser that supports extensions (Chrome, Edge, Brave, Opera…).
+It works in any Chromium-based browser that supports extensions (but i tested it only on Chrome).
 
 ## Usage
 
@@ -34,8 +34,82 @@ Click the goblin in the toolbar to open the popup:
 
 - **START / STOP**: turns the blocker on or off. The button shows the action you can take, so it reads **STOP** while the blocker is active. When it's off the goblin turns grey.
 - **Update Domain**: the site to protect. Type or paste the domain (`streamingcommunityz.photos`) or a full URL (`https://streamingcommunityz.photos/...`). It's saved automatically as soon as you stop typing, or right away when you press Enter. Subdomains are covered too.
+- **Next Episode**: plays the next episode automatically. **ON / OFF** toggles it; the value next to it says when to start, either in **seconds** before the end (default: 30) or as a **% of the video**. Changes apply immediately, even to an episode that's already playing.
 
 When a popup attempt is blocked, a small yellow **Popup blocked** toast appears at the bottom of the page (also in fullscreen). If several attempts are blocked in a row it shows a counter (`×2`, `×3`…).
+
+### Next episode
+
+When the episode reaches the threshold, a yellow box appears over the player: **Next episode in 5**. When the countdown ends, the next episode loads and starts on its own. From the box you can:
+
+- **Play now**: skip the countdown;
+- **Cancel**: stay on this episode (it won't ask again unless you seek back before the threshold).
+
+The countdown pauses while the video is paused. Nothing happens on the last episode of a series, or on videos shorter than 2 minutes.
+
+The new episode **starts playing on its own**, whether you got there via the countdown or the player's next-episode button.
+
+Chrome only lets a page play sound or go fullscreen right after you click or press a key, and a freshly loaded episode page hasn't had one yet. So:
+
+- **Sound**: if Chrome refuses to start the video with sound, it starts muted and a box says **Click to unmute**. You can avoid this with the policy below.
+- **Fullscreen**: if you were watching in fullscreen, the box says **Click for fullscreen** (or **Click for sound & fullscreen**). One click or key press puts the new episode back in fullscreen, without pausing it. This click can't be avoided on a personal computer. Chrome does have a policy for fullscreen without a click (`AutomaticFullscreenAllowedForUrls`), but in our tests on a personal Mac, Chrome accepted the policy and still refused fullscreen without a click.
+
+### Autoplay with sound
+
+No extension can override Chrome's autoplay rules, but the `AutoplayAllowlist` browser policy can make an exception for the streaming site and its player. Setting it up once is enough, and it only affects the sites you list.
+
+The player is hosted on `vixcloud.co`. Replace `streamingcommunityz.photos` with the domain you're currently using.
+
+#### macOS
+
+1. Run in the Terminal:
+
+   ```bash
+   defaults write com.google.Chrome AutoplayAllowlist -array '"[*.]vixcloud.co"' '"[*.]streamingcommunityz.photos"'
+   ```
+
+2. Quit Chrome completely (**Cmd + Q**, not just closing the window) and reopen it.
+3. Open `chrome://policy`, click **Reload policies** and check that `AutoplayAllowlist` is listed with status **OK**. The level shows as *Recommended*: that's expected on macOS, and it works.
+
+Keep the single quotes around each value: without them `defaults` reads `[` as the start of a list and fails with *Could not parse*.
+
+When the site changes domain, run the same command with the new domain (it replaces the old list). To remove the setting:
+
+```bash
+defaults delete com.google.Chrome AutoplayAllowlist
+```
+
+#### Windows
+
+1. Open **Command Prompt as administrator** (Start → type `cmd` → right-click → *Run as administrator*).
+2. Run:
+
+   ```bat
+   reg add "HKLM\SOFTWARE\Policies\Google\Chrome\AutoplayAllowlist" /v 1 /t REG_SZ /d "[*.]vixcloud.co" /f
+   reg add "HKLM\SOFTWARE\Policies\Google\Chrome\AutoplayAllowlist" /v 2 /t REG_SZ /d "[*.]streamingcommunityz.photos" /f
+   ```
+
+3. Close all Chrome windows, reopen Chrome, go to `chrome://policy`, click **Reload policies** and check that `AutoplayAllowlist` is listed with status **OK**.
+
+When the site changes domain, run the second command again with the new domain (it overwrites entry `2`). To remove the setting:
+
+```bat
+reg delete "HKLM\SOFTWARE\Policies\Google\Chrome\AutoplayAllowlist" /f
+```
+
+#### If the policy doesn't show up
+
+On some personal computers Chrome may ignore the policy. As an alternative, start Chrome with a flag that allows autoplay with sound on **every** site. Chrome must be fully closed first.
+
+- **macOS**:
+
+  ```bash
+  open -a "Google Chrome" --args --autoplay-policy=no-user-gesture-required
+  ```
+
+- **Windows**: right-click the Chrome shortcut → **Properties** and add ` --autoplay-policy=no-user-gesture-required` at the end of the **Target** field, after the closing quote. Then always open Chrome from that shortcut.
+
+> Using another Chromium browser? Replace the Chrome-specific parts: on macOS `com.microsoft.Edge` or `com.brave.Browser` instead of `com.google.Chrome`; on Windows `Microsoft\Edge` or `BraveSoftware\Brave` instead of `Google\Chrome` in the registry path.
 
 ### Good to know
 
@@ -55,6 +129,8 @@ The core is [`blocker.js`](blocker.js), injected into the page before any site s
 
 The extension injects it on every page load of the chosen domain (single-page navigations keep the patches, since the page never reloads), and also into the player iframe, which usually lives on a different domain.
 
+The next-episode feature ([`autonext.js`](autonext.js)) runs inside the player iframe. It watches the `<video>` playback time and, when the threshold is reached, presses the player's own "next episode" button, which tells the site to load the next episode. That button only exists when there is a next episode, so on the last one the goblin does nothing. When the new episode's player loads, the goblin presses play for you. To make that possible with sound, `blocker.js` also grants the player iframe the `autoplay` permission, which the site doesn't give it.
+
 `blocker.js` also works standalone: paste it into the DevTools console of the site to protect that single page, without the toast.
 
 ## What it is not
@@ -71,6 +147,7 @@ Don't use it on regular websites: it would also break legitimate popups like "Si
 | `background.js` | Registers and injects the scripts on the chosen domain and its iframes |
 | `blocker.js` | The popup blocker itself, running in the page context |
 | `toast.js` | Shows the "Popup blocked" toast |
+| `autonext.js` | Next-episode countdown and autoplay, inside the player |
 | `popup.html` / `popup.js` | The toolbar popup |
 | `fonts/` | Rubik Iso font, bundled locally |
 | `icons/`, `goblin.png` | Icons and artwork |
@@ -78,7 +155,7 @@ Don't use it on regular websites: it would also break legitimate popups like "Si
 ## Permissions
 
 - **scripting**, **webNavigation**, **tabs**: inject the blocker into the chosen site and its player iframe.
-- **storage**: remember the domain and the on/off state.
+- **storage**: remember the domain, the on/off state and the next-episode settings.
 - **Access to all sites**: needed because the domain is configurable and the player is hosted elsewhere. The blocker only runs on tabs of the domain you set.
 
 No data is collected or sent anywhere.
