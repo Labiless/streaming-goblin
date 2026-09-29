@@ -1,7 +1,7 @@
 const SCRIPT_ID = 'sc-blocker';
 const TOAST_ID = 'sc-toast';
 const ISOLATED_SCRIPTS = ['toast.js', 'autonext.js', 'continue.js'];
-const DEFAULTS = { enabled: true, domain: 'streamingcommunityz.photos' };
+const DEFAULTS = { enabled: true, domain: 'streamingcommunityz.pictures' };
 
 // Accetta sia "https://sito.xyz/qualcosa" sia "sito.xyz"
 function normalizeDomain(input) {

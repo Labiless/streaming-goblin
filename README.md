@@ -13,7 +13,7 @@
 
 ## The problem
 
-On some streaming sites, the first few clicks on anything (the video, the player, the fullscreen button…) don't do what you asked: they open an ad in a new tab and switch you to it. Only after 3–4 attempts does the click actually work. **THIS IS EXTREMELY ANNOYING.**
+On Streaming Community, the first few clicks on anything (the video, the player, the fullscreen button…) don't do what you asked: they open an ad in a new tab and switch you to it. Only after 3–4 attempts does the click actually work. **THIS IS EXTREMELY ANNOYING.**
 
 Streaming Goblin blocks those attempts, so every click works on the first try.
 
@@ -30,7 +30,7 @@ It should work in any Chromium-based browser, but I've only tested it on Chrome.
 
 ## Usage
 
-Click the goblin in the toolbar. Under the title, type the site's domain (e.g. `streamingcommunityz.photos`; a full URL works too). It's saved as you type. When the site changes domain, just update it.
+Click the goblin in the toolbar. Under the title, type the site's domain (e.g. `streamingcommunityz.pictures`; a full URL works too). It's saved as you type. When the site changes domain, just update it.
 
 Each feature has its own toggle, independent of the others; when a feature has settings, they open below it. Changes apply right away, even to the episode that's playing.
 
@@ -55,12 +55,12 @@ Each feature has its own toggle, independent of the others; when a feature has s
 
 You normally don't need this: the first episode starts with your click, and the next ones play in the same player, so Chrome allows sound. It's only a safety net for when the page does reload (fallback above): without it, the video starts muted with **Click to unmute**.
 
-The `AutoplayAllowlist` policy tells Chrome to always allow sound on the site and its player (hosted on `vixcloud.co`). Replace `streamingcommunityz.photos` with your current domain, and run the command again when it changes.
+The `AutoplayAllowlist` policy tells Chrome to always allow sound on the site and its player (hosted on `vixcloud.co`). Replace `streamingcommunityz.pictures` with your current domain, and run the command again when it changes.
 
 **macOS** (keep the single quotes, or `defaults` fails with *Could not parse*):
 
 ```bash
-defaults write com.google.Chrome AutoplayAllowlist -array '"[*.]vixcloud.co"' '"[*.]streamingcommunityz.photos"'
+defaults write com.google.Chrome AutoplayAllowlist -array '"[*.]vixcloud.co"' '"[*.]streamingcommunityz.pictures"'
 # to remove it:
 defaults delete com.google.Chrome AutoplayAllowlist
 ```
@@ -69,7 +69,7 @@ defaults delete com.google.Chrome AutoplayAllowlist
 
 ```bat
 reg add "HKLM\SOFTWARE\Policies\Google\Chrome\AutoplayAllowlist" /v 1 /t REG_SZ /d "[*.]vixcloud.co" /f
-reg add "HKLM\SOFTWARE\Policies\Google\Chrome\AutoplayAllowlist" /v 2 /t REG_SZ /d "[*.]streamingcommunityz.photos" /f
+reg add "HKLM\SOFTWARE\Policies\Google\Chrome\AutoplayAllowlist" /v 2 /t REG_SZ /d "[*.]streamingcommunityz.pictures" /f
 :: to remove it:
 reg delete "HKLM\SOFTWARE\Policies\Google\Chrome\AutoplayAllowlist" /f
 ```

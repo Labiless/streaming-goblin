@@ -1,6 +1,6 @@
 const DEFAULTS = {
   enabled: true,              // "Block popup"
-  domain: 'streamingcommunityz.photos',
+  domain: 'streamingcommunityz.pictures',
   autoNext: true,
   autoNextValue: 30,
   tracks: false,
