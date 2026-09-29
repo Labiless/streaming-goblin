@@ -26,7 +26,14 @@ The extension isn't on the Chrome Web Store, so you load it manually:
 3. Click **Load unpacked** and select the project folder (the one containing `manifest.json`).
 4. Optional: pin the goblin to the toolbar via the puzzle-piece icon.
 
-It should work in any Chromium-based browser, but I've only tested it on Chrome.
+It should work in any Chromium-based browser; see [Tested browsers](#tested-browsers) for the ones it's been tried on.
+
+## Tested browsers
+
+| Browser | Status |
+| --- | --- |
+| Google Chrome | ✅ Tested |
+| Opera | ✅ Tested |
 
 ## Usage
 
