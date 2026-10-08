@@ -69,6 +69,7 @@
     const now = Date.now();
     if (now - last < 300) return;
     last = now;
+    window.__goblinLog?.('info', 'Popup blocked');
     show();
   });
 })();

@@ -48,6 +48,7 @@ Each feature has its own toggle, independent of the others; when a feature has s
 | **Auto language** | Sets your audio and subtitles on every episode (the player otherwise resets to Italian audio and forced Italian subtitles). |
 | **Skip intro** | Jumps from the intro start to its end (`minutes:seconds`). The times apply to every episode: update them when you switch series. |
 | **Resume episode** | Remembers where you left off: episodes resume from that point, and the homepage shows a **Continue watching** box. |
+| **Log** | Shows errors and messages from the site, the player and the goblin right in the popup, since the site doesn't let you open DevTools. **Copy** them to share, **Clear** to start over. |
 
 ### Good to know
 
@@ -56,6 +57,7 @@ Each feature has its own toggle, independent of the others; when a feature has s
 - **Skip intro** only skips when the video plays into the intro, not when you drag the progress bar back into it.
 - **Continue watching** keeps the last 10 series, only in this browser. Finished an episode? The box offers the next one. **Remove** forgets a series; turning **Resume episode** off stops recording but keeps the history.
 - **Links that legitimately open in a new tab** (e.g. Telegram) are blocked too: use **Ctrl/Cmd + click**.
+- **Log** records only while it's on, keeps the last 300 entries (repeats are grouped as ×N) and forgets them when you close the browser. It catches what the page can see (uncaught errors, failed promises, `console.error`/`warn`, resources that fail to load, the goblin's own messages), not Chrome's internal network or security errors.
 - After turning **Block popup** off, pages already open stay protected until you reload them.
 
 ## Autoplay with sound (optional)
@@ -103,6 +105,7 @@ There's no equivalent for fullscreen: Chrome's `AutomaticFullscreenAllowedForUrl
 | `background.js` | Injects the scripts; looks up the next episode; saves the watch history |
 | `blocker.js` | Popup blocker, in the page context |
 | `toast.js` | "Popup blocked" toast |
+| `logger-main.js` / `logger.js` | Collect errors from the page and pass them to the popup's **Log** |
 | `autonext.js` | Next episode, autoplay, language, skip intro, progress and resume, in the player |
 | `continue.js` | "Continue watching" box on the homepage |
 | `popup.html` / `popup.js` | Toolbar popup |
@@ -111,7 +114,7 @@ There's no equivalent for fullscreen: Chrome's `AutomaticFullscreenAllowedForUrl
 ## Permissions
 
 - **scripting**, **webNavigation**, **tabs**: run the goblin on your domain and inside its player iframe.
-- **storage**: your settings and the watch history (local, this browser only).
+- **storage**: your settings, the watch history and the logs (local, this browser only; logs are cleared when the browser closes).
 - **Access to all sites**: the domain is configurable and the player lives on another one. Nothing runs outside the tabs of your domain.
 
 No data is collected. The only requests the extension makes on its own go to the streaming site itself, to find the next episode and its artwork.

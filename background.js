@@ -1,6 +1,7 @@
 const SCRIPT_ID = 'sc-blocker';
 const TOAST_ID = 'sc-toast';
-const ISOLATED_SCRIPTS = ['toast.js', 'autonext.js', 'continue.js'];
+const LOGGER_ID = 'sc-logger';
+const ISOLATED_SCRIPTS = ['logger.js', 'toast.js', 'autonext.js', 'continue.js'];
 const DEFAULTS = { enabled: true, domain: 'streamingcommunityz.pictures' };
 
 // Accetta sia "https://sito.xyz/qualcosa" sia "sito.xyz"
@@ -37,7 +38,7 @@ async function getSettings() {
 async function syncRegistration() {
   const { enabled, domain } = await getSettings();
 
-  const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [SCRIPT_ID, TOAST_ID] });
+  const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [SCRIPT_ID, TOAST_ID, LOGGER_ID] });
   if (existing.length) await chrome.scripting.unregisterContentScripts({ ids: existing.map(s => s.id) });
 
   if (!domain) return;
@@ -49,6 +50,15 @@ async function syncRegistration() {
     js: ISOLATED_SCRIPTS,
     matches: matchPatterns(domain),
     runAt: 'document_start',
+    allFrames: true,
+    persistAcrossSessions: true
+  }, {
+    // Raccoglie gli errori della pagina per il toggle "Log" (resta inattivo se è spento)
+    id: LOGGER_ID,
+    js: ['logger-main.js'],
+    matches: matchPatterns(domain),
+    runAt: 'document_start',
+    world: 'MAIN',
     allFrames: true,
     persistAcrossSessions: true
   }];
@@ -78,6 +88,7 @@ async function injectIntoOpenTabs(domain, blockPopups) {
 function injectInto(target, blockPopups, extra = {}) {
   return Promise.all([
     blockPopups && chrome.scripting.executeScript({ target, files: ['blocker.js'], world: 'MAIN', ...extra }),
+    chrome.scripting.executeScript({ target, files: ['logger-main.js'], world: 'MAIN', ...extra }),
     chrome.scripting.executeScript({ target, files: ISOLATED_SCRIPTS, ...extra })
   ]).catch(() => {});
 }
@@ -184,7 +195,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === 'next-episode-info') {
     nextEpisodeInfo(sender.tab.url, msg.scwsId)
       .then(sendResponse)
-      .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));
+      .catch(err => {
+        addLog('error', `Next episode lookup failed: ${err?.message || err}`);
+        sendResponse({ ok: false, error: err?.message || String(err) });
+      });
     return true; // risposta asincrona
   }
 
@@ -423,4 +437,50 @@ chrome.runtime.onInstalled.addListener(async () => {
   const last = Object.values(intros).reverse().find(i => i.end > i.start);
   if (last) await chrome.storage.sync.set({ introSkip: !!last.on, introStart: last.start, introEnd: last.end });
   await chrome.storage.sync.remove('intros');
+});
+
+// ======== Log: errori e messaggi mostrati nel popup (vedi logger.js) ========
+// Restano in chrome.storage.session: si cancellano chiudendo il browser.
+
+const LOG_MAX = 300;
+let logging = false;
+chrome.storage.sync.get({ logging: false }).then(s => { logging = s.logging; });
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync' && changes.logging) logging = changes.logging.newValue;
+});
+
+let pendingLogs = [];
+let logQueue = Promise.resolve();
+
+function addLog(level, text, source = 'extension') {
+  if (!logging) return;
+  pendingLogs.push({ t: Date.now(), level, source, text: String(text).slice(0, 1000) });
+  // Le scritture si raggruppano e si mettono in fila, per non perderne nessuna
+  if (pendingLogs.length === 1) {
+    logQueue = logQueue.then(() => new Promise(r => setTimeout(r, 300))).then(flushLogs).catch(() => {});
+  }
+}
+
+async function flushLogs() {
+  const batch = pendingLogs;
+  pendingLogs = [];
+  const { logs = [] } = await chrome.storage.session.get({ logs: [] });
+  for (const entry of batch) {
+    // Lo stesso messaggio ripetuto di fila diventa un'unica riga "×N"
+    const last = logs[logs.length - 1];
+    if (last && last.text === entry.text && last.source === entry.source && last.level === entry.level) {
+      last.count = (last.count || 1) + 1;
+      last.t = entry.t;
+    } else {
+      logs.push(entry);
+    }
+  }
+  await chrome.storage.session.set({ logs: logs.slice(-LOG_MAX) });
+}
+
+self.addEventListener('error', e => addLog('error', `Extension: ${e.message}`));
+self.addEventListener('unhandledrejection', e => addLog('error', `Extension: ${e.reason?.message || e.reason}`));
+
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg?.type === 'log' && sender.tab) addLog(msg.level, msg.text, msg.source);
 });

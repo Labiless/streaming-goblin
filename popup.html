@@ -20,7 +20,8 @@
     * { box-sizing: border-box; }
 
     html, body { background: var(--black); }
-    body.no-anim * { transition: none !important; }
+    body.no-anim *,
+    body.no-anim *::after { transition: none !important; }
 
     body {
       width: 440px;
@@ -217,6 +218,30 @@
       pointer-events: none;
     }
 
+    /* ---- Log ---- */
+    .config .inner.log { flex-direction: column; gap: 10px; }
+    .log-list {
+      height: 170px;
+      overflow-y: auto;
+      padding: 6px 8px;
+      border: 1px solid var(--yellow);
+      background: #0d0c04;
+      font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+      user-select: text;
+      overflow-wrap: anywhere;
+    }
+    .log-list:empty::before {
+      content: 'No logs yet. Keep Log on, reproduce the problem, then come back here.';
+      opacity: .6;
+    }
+    .log-entry { padding: 2px 0; border-bottom: 1px solid rgba(255, 234, 79, .12); }
+    .log-entry .meta { opacity: .55; }
+    .log-entry.error { color: #ff8f80; }
+    .log-entry.info { opacity: .8; }
+    .log-actions { display: flex; gap: 22px; }
+    .log-actions .field { cursor: pointer; }
+    .log-actions .field:hover { background: var(--black); color: var(--yellow); box-shadow: inset 0 0 0 1px var(--yellow); }
+
     /* ---- Firma ---- */
     footer {
       display: flex;
@@ -318,6 +343,21 @@
         <span class="line"></span>
         <button class="switch" id="sw-continueWatching" role="switch" aria-checked="false"></button>
       </div>
+    </section>
+
+    <section class="feature" data-key="logging">
+      <div class="row">
+        <label for="sw-logging">Log</label>
+        <span class="line"></span>
+        <button class="switch" id="sw-logging" role="switch" aria-checked="false"></button>
+      </div>
+      <div class="config"><div><div class="inner log">
+        <div class="log-list" id="log-list" aria-live="polite"></div>
+        <div class="log-actions">
+          <button class="field" id="log-copy">Copy</button>
+          <button class="field" id="log-clear">Clear</button>
+        </div>
+      </div></div></div>
     </section>
   </main>
 

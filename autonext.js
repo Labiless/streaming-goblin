@@ -108,7 +108,11 @@
 
   // ======== Episodio successivo senza ricaricare la pagina ========
 
-  const log = (...args) => console.info('[Streaming Goblin]', ...args);
+  // In console e, se il toggle "Log" è attivo, nel popup (vedi logger.js)
+  const log = (...args) => {
+    console.info('[Streaming Goblin]', ...args);
+    window.__goblinLog?.('info', ...args);
+  };
   let switching = false;
   // Dopo un cambio al volo la pagina del sito crede di essere ancora sull'episodio vecchio:
   // se serve ricaricare, bisogna dirle noi dove andare
@@ -148,7 +152,8 @@
       if (!(await waitFor(isPlaying, 8000))) pressPlay();
     } catch (err) {
       const reason = err?.message || String(err);
-      log('seamless next episode failed, reloading the page -', reason);
+      console.info('[Streaming Goblin] seamless next episode failed, reloading the page -', reason);
+      window.__goblinLog?.('warn', 'Seamless next episode failed, reloading the page -', reason);
       // Il motivo resta visibile qualche secondo: la console dentro il player non è comoda da usare
       overlay.show(`Reloading page (${reason.slice(0, 70)})`);
       await sleep(3000);

@@ -9,7 +9,8 @@ const DEFAULTS = {
   introSkip: false,
   introStart: null,
   introEnd: null,
-  continueWatching: true
+  continueWatching: true,
+  logging: false
 };
 
 const $ = id => document.getElementById(id);
@@ -135,6 +136,50 @@ for (const input of [introStart, introEnd]) {
   });
 }
 
+// ======== Log: errori e messaggi di sito, player e goblin (vedi logger.js) ========
+
+const logList = $('log-list');
+let logs = [];
+
+const clock = t => new Date(t).toLocaleTimeString('it-IT', { hour12: false });
+// Da dove arriva: il goblin stesso, il player o il sito
+const sourceName = src => (src === 'extension' ? 'goblin' : /vixcloud/.test(src) ? 'player' : 'site');
+const logLine = e =>
+  `${clock(e.t)} [${e.level}] ${sourceName(e.source)}: ${e.text}${e.count > 1 ? ` (×${e.count})` : ''}`;
+
+function renderLogs() {
+  const atBottom = logList.scrollHeight - logList.scrollTop - logList.clientHeight < 20;
+  logList.replaceChildren(...logs.map(e => {
+    const row = document.createElement('div');
+    row.className = `log-entry ${e.level}`;
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = `${clock(e.t)} ${sourceName(e.source)} `;
+    row.append(meta, `${e.text}${e.count > 1 ? ` ×${e.count}` : ''}`);
+    return row;
+  }));
+  // Resta in fondo, a meno che tu non stia leggendo più in alto
+  if (atBottom) logList.scrollTop = logList.scrollHeight;
+}
+
+chrome.storage.session.get({ logs: [] }).then(s => { logs = s.logs; renderLogs(); });
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'session' && changes.logs) {
+    logs = changes.logs.newValue || [];
+    renderLogs();
+  }
+});
+
+$('log-copy').addEventListener('click', async () => {
+  if (!logs.length) return showStatus('No logs to copy');
+  await navigator.clipboard.writeText(logs.map(logLine).join('\n'));
+  showStatus(`Copied ${logs.length} log lines`);
+});
+$('log-clear').addEventListener('click', async () => {
+  await chrome.storage.session.remove('logs');
+  showStatus('');
+});
+
 // ======== Stato iniziale ========
 
 chrome.storage.sync.get(DEFAULTS).then(s => {
@@ -151,6 +196,7 @@ chrome.storage.sync.get(DEFAULTS).then(s => {
 
   // Niente animazione dell'accordion all'apertura del popup
   document.body.classList.add('no-anim');
-  for (const key of ['enabled', 'autoNext', 'tracks', 'introSkip', 'continueWatching']) setFeature(key, !!s[key]);
-  requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove('no-anim')));
+  for (const key of ['enabled', 'autoNext', 'tracks', 'introSkip', 'continueWatching', 'logging']) setFeature(key, !!s[key]);
+  void document.body.offsetWidth; // applica lo stato senza animazione prima di riattivarle
+  setTimeout(() => document.body.classList.remove('no-anim'), 50);
 });
