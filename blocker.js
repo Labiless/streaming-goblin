@@ -193,6 +193,18 @@
       } catch {}
     }
 
+    // 7. Lo script pubblicitario, quando si accorge che il popup è bloccato, ridefinisce
+    //    document.head perché restituisca null: <head> resta nella pagina, ma il sito non lo
+    //    trova più e si rompe ("Cannot read properties of null (reading 'appendChild')").
+    //    Le proprietà vengono fissate sui getter originali del browser.
+    for (const prop of ['head', 'body', 'documentElement']) {
+      const d = Object.getOwnPropertyDescriptor(win.Document.prototype, prop);
+      if (!d?.get) continue;
+      try {
+        Object.defineProperty(doc, prop, { get: d.get, set: d.set, enumerable: d.enumerable, configurable: false });
+      } catch {}
+    }
+
     // Rete di sicurezza per iframe inseriti dall'HTML della pagina
     try { new win.MutationObserver(scan).observe(doc, { childList: true, subtree: true }); } catch {}
   }
